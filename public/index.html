@@ -7,48 +7,76 @@
   <style>
     body {
       font-family: Arial;
+      background: #0f172a;
+      color: white;
       text-align: center;
-      background: #f5f5f5;
     }
 
     h2 {
-      margin-top: 20px;
+      margin: 20px;
     }
 
-    #status {
+    .card {
+      background: #1e293b;
+      border-radius: 15px;
+      padding: 20px;
+      margin: 20px auto;
+      width: 300px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+
+    .status {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .timer {
       font-size: 22px;
-      margin: 10px;
+      margin-top: 10px;
     }
 
-    #alarm {
-      font-size: 20px;
-      margin: 10px;
+    .alarm {
       color: red;
       font-weight: bold;
+      margin-top: 10px;
     }
 
     canvas {
       background: white;
-      padding: 20px;
       border-radius: 10px;
+      padding: 10px;
     }
   </style>
 </head>
 
 <body>
 
-<h2>Dashboard mašine</h2>
+<h2>🏭 Dashboard mašine</h2>
 
-<h3 id="status">Status: učitavanje...</h3>
-<h3 id="alarm"></h3>
+<div class="card">
+  <div id="status" class="status">Učitavanje...</div>
+  <div id="timer" class="timer"></div>
+  <div id="alarm" class="alarm"></div>
+</div>
 
-<canvas id="chart" width="400" height="200"></canvas>
+<div class="card">
+  <canvas id="chart"></canvas>
+</div>
 
 <script>
+const API_DATA = "/api/data";
 const API_STATS = "/api/stats";
-const API_LIVE = "/api/live";
 
 let chart;
+let currentStartTime = null;
+
+// 🎨 boje
+function getColor(state) {
+  if (state === "RAD") return "lime";
+  if (state === "ZASTOJ") return "red";
+  if (state === "PRIPREMA") return "orange";
+  return "gray";
+}
 
 // 📊 GRAF
 async function loadStats() {
@@ -60,16 +88,14 @@ async function loadStats() {
 
   const ctx = document.getElementById("chart");
 
-  if (chart) {
-    chart.destroy();
-  }
+  if (chart) chart.destroy();
 
   chart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: labels,
+      labels,
       datasets: [{
-        label: "Ukupno vrijeme (s)",
+        label: "Vrijeme (s)",
         data: values
       }]
     }
@@ -78,47 +104,49 @@ async function loadStats() {
 
 // 🟢 LIVE STATUS
 async function loadLive() {
-  const res = await fetch("/api/data");
+  const res = await fetch(API_DATA);
   const data = await res.json();
 
   if (!data || data.length === 0) return;
 
-  const current = data[0];   // najnoviji zapis
-  const previous = data[1];  // prethodni zapis
+  const current = data[0];
 
-  // 🎨 boje za trenutno stanje
-  let color = "black";
-  if (current.state === "RAD") color = "green";
-  if (current.state === "ZASTOJ") color = "red";
-  if (current.state === "PRIPREMA") color = "orange";
-
-  // 🟢 trenutno stanje (bez trajanja)
+  // status
   document.getElementById("status").innerHTML =
-    `<span style="color:${color}">
-      Trenutno stanje: ${current.state}
+    `<span style="color:${getColor(current.state)}">
+      ${current.state}
     </span>`;
 
-  // ⏱️ prethodno stanje + trajanje
-  if (previous) {
-    document.getElementById("alarm").innerHTML =
-      `Prethodno: ${previous.state} (${previous.duration}s)`;
-  }
+  // vrijeme početka
+  currentStartTime = new Date(current.created_at);
 
-  // 🚨 alarm ako je prethodni bio dug zastoj
-  if (previous && previous.state === "ZASTOJ" && previous.duration > 60) {
-    document.getElementById("alarm").innerHTML +=
-      `<br>⚠️ ALARM: Dug zastoj!`;
+  // alarm
+  if (current.state === "ZASTOJ") {
+    document.getElementById("alarm").innerHTML = "⚠️ ZASTOJ!";
+  } else {
+    document.getElementById("alarm").innerHTML = "";
   }
 }
 
-// 🔄 AUTO REFRESH
-setInterval(loadStats, 5000);
-setInterval(loadLive, 2000);
+// ⏱️ LIVE TIMER
+setInterval(() => {
+  if (!currentStartTime) return;
 
-// 🚀 START
+  const now = new Date();
+  const diff = Math.floor((now - currentStartTime) / 1000);
+
+  document.getElementById("timer").innerText =
+    `Trajanje: ${diff}s`;
+}, 1000);
+
+// 🔄 REFRESH
+setInterval(loadLive, 5000);
+setInterval(loadStats, 10000);
+
+// START
 window.onload = () => {
-  loadStats();
   loadLive();
+  loadStats();
 };
 </script>
 
