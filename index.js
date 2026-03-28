@@ -42,7 +42,12 @@ app.post("/api/data", async (req, res) => {
 
   const now = new Date();
 
-  // 🔥 BITNO — uvijek update
+  // ✅ ako je bila offline → sad je online
+  if (offlineTriggered[machineId]) {
+    console.log(`✅ ${machineId} ONLINE opet`);
+  }
+
+  // 🔥 uvijek update
   lastSeen[machineId] = now;
   offlineTriggered[machineId] = false;
 
@@ -53,10 +58,6 @@ app.post("/api/data", async (req, res) => {
   }
 
   try {
-    const now = new Date();
-    lastSeen[machineId] = now;
-    offlineTriggered[machineId] = false;
-
     // prvi put
     if (!lastState[machineId]) {
       lastState[machineId] = state;
@@ -82,7 +83,7 @@ app.post("/api/data", async (req, res) => {
       [machineId, lastState[machineId], duration]
     );
 
-    // 🚨 ALARM LOGIKA (ispravna verzija)
+    // 🚨 ALARM LOGIKA
     if (lastState[machineId] === "ZASTOJ" && duration > 60) {
       console.log("⚠️ ALARM: Dug zastoj!", {
         machineId,
@@ -103,7 +104,7 @@ app.post("/api/data", async (req, res) => {
 });
 
 // =======================
-// 📊 HISTORIJA
+// 🏭 SVE MAŠINE (zadnje stanje)
 // =======================
 app.get("/api/machines", async (req, res) => {
   try {
@@ -121,6 +122,9 @@ app.get("/api/machines", async (req, res) => {
   }
 });
 
+// =======================
+// 📊 HISTORIJA
+// =======================
 app.get("/api/data", async (req, res) => {
   try {
     const result = await pool.query(
@@ -201,12 +205,15 @@ app.get("/api/stats/percent", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server radi na portu", PORT));
 
+// =======================
+// 🚨 OFFLINE DETEKCIJA
+// =======================
 setInterval(() => {
   const now = new Date();
 
   for (let machineId of machines) {
 
-    // ako nikad nije poslala podatke
+    // nikad viđena mašina
     if (!lastSeen[machineId]) {
       if (!offlineTriggered[machineId]) {
         offlineTriggered[machineId] = true;
