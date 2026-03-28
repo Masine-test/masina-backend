@@ -16,7 +16,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-
 // =======================
 // 📥 POST PODATAKA (ESP)
 // =======================
@@ -60,6 +59,14 @@ app.post("/api/data", async (req, res) => {
       [machineId, lastState[machineId], duration]
     );
 
+    // 🚨 ALARM LOGIKA (ispravna verzija)
+    if (lastState[machineId] === "ZASTOJ" && duration > 60) {
+      console.log("⚠️ ALARM: Dug zastoj!", {
+        machineId,
+        duration
+      });
+    }
+
     // update
     lastState[machineId] = state;
     lastChangeTime[machineId] = now;
@@ -71,23 +78,6 @@ app.post("/api/data", async (req, res) => {
     return res.status(500).send("error");
   }
 });
-
-    // 🚨 ALARM LOGIKA
-    if (state === "ZASTOJ" && duration > 60) {
-      console.log("⚠️ ALARM: Dug zastoj!", {
-        machineId,
-        duration
-      });
-    }
-
-    res.json({ status: "ok" });
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
-
 
 // =======================
 // 📊 HISTORIJA
@@ -105,7 +95,6 @@ app.get("/api/data", async (req, res) => {
     res.status(500).send("error");
   }
 });
-
 
 // =======================
 // 📈 STATISTIKA
@@ -126,9 +115,8 @@ app.get("/api/stats", async (req, res) => {
   }
 });
 
-
 // =======================
-// 🟢 LIVE STATUS (najnoviji)
+// 🟢 LIVE STATUS
 // =======================
 app.get("/api/live", async (req, res) => {
   try {
@@ -146,9 +134,8 @@ app.get("/api/live", async (req, res) => {
   }
 });
 
-
 // =======================
-// 🥧 PROCENTI (za pie chart)
+// 🥧 PROCENTI
 // =======================
 app.get("/api/stats/percent", async (req, res) => {
   try {
@@ -168,7 +155,6 @@ app.get("/api/stats/percent", async (req, res) => {
     res.status(500).send("error");
   }
 });
-
 
 // =======================
 // 🚀 SERVER
