@@ -86,6 +86,22 @@ app.post("/api/data", async (req, res) => {
 // =======================
 // 📊 HISTORIJA
 // =======================
+app.get("/api/machines", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT ON (machine_id) *
+      FROM events
+      ORDER BY machine_id, created_at DESC
+    `);
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("error");
+  }
+});
+
 app.get("/api/data", async (req, res) => {
   try {
     const result = await pool.query(
