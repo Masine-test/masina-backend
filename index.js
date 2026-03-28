@@ -117,21 +117,43 @@ app.get("/api/machines/all", async (req, res) => {
     const dbMachines = result.rows;
 
     const map = {};
-
     dbMachines.forEach(m => {
       map[m.machine_id] = m;
     });
 
+    const now = new Date();
+
     const fullList = machines.map(id => {
-      if (map[id]) {
-        return map[id];
-      } else {
+
+      // nikad nije online bila
+      if (!lastSeen[id]) {
         return {
           machine_id: id,
           state: "OFFLINE",
-          created_at: new Date()
+          status: "NEVER",
+          created_at: null
         };
       }
+
+      const diff = (now - lastSeen[id]) / 1000;
+
+      // bila online ali pala
+      if (diff > 30) {
+        return {
+          machine_id: id,
+          state: "OFFLINE",
+          status: "OFFLINE",
+          created_at: lastSeen[id]
+        };
+      }
+
+      // online je
+      return {
+        machine_id: id,
+        state: lastState[id] || "UNKNOWN",
+        status: "ONLINE",
+        created_at: lastChangeTime[id] || now
+      };
     });
 
     res.json(fullList);
