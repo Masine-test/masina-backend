@@ -1,14 +1,6 @@
 const machines = [
-  "masina_01",
-  "masina_02",
-  "masina_03",
-  "masina_04",
-  "masina_05",
-  "masina_06",
-  "masina_07",
-  "masina_08",
-  "masina_09",
-  "masina_10"
+  "masina_01","masina_02","masina_03","masina_04","masina_05",
+  "masina_06","masina_07","masina_08","masina_09","masina_10"
 ];
 
 const express = require("express");
@@ -18,80 +10,68 @@ const cors = require("cors");
 
 const app = express();
 
-// 🔹 middleware
 app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, "public")));
 
-// 🔹 baza
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
 // =======================
-// 📥 POST PODATAKA (ESP)
+// 📥 STATE MEMORY
 // =======================
 let lastState = {};
 let lastChangeTime = {};
 let lastSeen = {};
 let offlineTriggered = {};
 
+// =======================
+// 📥 POST (ESP)
+// =======================
 app.post("/api/data", async (req, res) => {
   const { machineId, state } = req.body;
-
-  const now = new Date();
-
-  // ✅ ako je bila offline → sad je online
-  if (offlineTriggered[machineId]) {
-    console.log(`✅ ${machineId} ONLINE opet`);
-  }
-
-  // 🔥 uvijek update
-  lastSeen[machineId] = now;
-  offlineTriggered[machineId] = false;
-
-  console.log("DATA:", req.body);
 
   if (!machineId || !state) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
+  const now = new Date();
+
+  // ONLINE povratak
+  if (offlineTriggered[machineId]) {
+    console.log(`✅ ${machineId} ONLINE opet`);
+  }
+
+  lastSeen[machineId] = now;
+  offlineTriggered[machineId] = false;
+
+  console.log("DATA:", req.body);
+
   try {
-    // prvi put
     if (!lastState[machineId]) {
       lastState[machineId] = state;
       lastChangeTime[machineId] = now;
-
-      console.log("INIT stanje:", state);
       return res.json({ status: "init" });
     }
 
-    // nema promjene
     if (state === lastState[machineId]) {
       return res.json({ status: "no change" });
     }
 
-    // promjena
     const duration = Math.floor((now - lastChangeTime[machineId]) / 1000);
-
-    console.log("PROMJENA:", lastState[machineId], "→", state);
-    console.log("Trajanje:", duration, "s");
 
     await pool.query(
       "INSERT INTO events (machine_id, state, duration) VALUES ($1, $2, $3)",
       [machineId, lastState[machineId], duration]
     );
 
-    // 🚨 ALARM LOGIKA
+    // 🚨 ALARM
     if (lastState[machineId] === "ZASTOJ" && duration > 60) {
-      console.log("⚠️ ALARM: Dug zastoj!", {
-        machineId,
-        duration
-      });
+      console.log(`⚠️ ALARM: ${machineId} dug zastoj (${duration}s)`);
     }
 
-    // update
     lastState[machineId] = state;
     lastChangeTime[machineId] = now;
 
@@ -104,55 +84,39 @@ app.post("/api/data", async (req, res) => {
 });
 
 // =======================
-// 🏭 SVE MAŠINE (zadnje stanje)
+// 🏭 SVE MAŠINE (PRO STATUS)
 // =======================
 app.get("/api/machines/all", async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT DISTINCT ON (machine_id) *
-      FROM events
-      ORDER BY machine_id, created_at DESC
-    `);
-
-    const dbMachines = result.rows;
-
-    const map = {};
-    dbMachines.forEach(m => {
-      map[m.machine_id] = m;
-    });
-
     const now = new Date();
 
     const fullList = machines.map(id => {
 
-      // nikad nije online bila
       if (!lastSeen[id]) {
         return {
           machine_id: id,
           state: "OFFLINE",
           status: "NEVER",
-          created_at: null
+          last_seen: null
         };
       }
 
       const diff = (now - lastSeen[id]) / 1000;
 
-      // bila online ali pala
       if (diff > 30) {
         return {
           machine_id: id,
           state: "OFFLINE",
           status: "OFFLINE",
-          created_at: lastSeen[id]
+          last_seen: lastSeen[id]
         };
       }
 
-      // online je
       return {
         machine_id: id,
         state: lastState[id] || "UNKNOWN",
         status: "ONLINE",
-        created_at: lastChangeTime[id] || now
+        last_seen: lastSeen[id]
       };
     });
 
@@ -165,6 +129,16 @@ app.get("/api/machines/all", async (req, res) => {
 });
 
 // =======================
+// ❤️ HEARTBEAT (NEW)
+// =======================
+app.get("/api/heartbeat", (req, res) => {
+  res.json({
+    server: "OK",
+    time: new Date()
+  });
+});
+
+// =======================
 // 📊 HISTORIJA
 // =======================
 app.get("/api/data", async (req, res) => {
@@ -172,9 +146,7 @@ app.get("/api/data", async (req, res) => {
     const result = await pool.query(
       "SELECT * FROM events ORDER BY created_at DESC LIMIT 50"
     );
-
     res.json(result.rows);
-
   } catch (err) {
     console.log(err);
     res.status(500).send("error");
@@ -191,50 +163,7 @@ app.get("/api/stats", async (req, res) => {
       FROM events
       GROUP BY state
     `);
-
     res.json(result.rows);
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
-
-// =======================
-// 🟢 LIVE STATUS
-// =======================
-app.get("/api/live", async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT * FROM events
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
-
-// =======================
-// 🥧 PROCENTI
-// =======================
-app.get("/api/stats/percent", async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        state,
-        SUM(duration) as total,
-        ROUND(100.0 * SUM(duration) / SUM(SUM(duration)) OVER (), 2) as percent
-      FROM events
-      GROUP BY state
-    `);
-
-    res.json(result.rows);
-
   } catch (err) {
     console.log(err);
     res.status(500).send("error");
@@ -255,7 +184,6 @@ setInterval(() => {
 
   for (let machineId of machines) {
 
-    // nikad viđena mašina
     if (!lastSeen[machineId]) {
       if (!offlineTriggered[machineId]) {
         offlineTriggered[machineId] = true;
