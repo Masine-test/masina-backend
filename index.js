@@ -21,6 +21,7 @@ const pool = new Pool({
 // =======================
 let lastState = {};
 let lastChangeTime = {};
+let lastSeen = {};
 
 app.post("/api/data", async (req, res) => {
   const { machineId, state } = req.body;
@@ -33,6 +34,7 @@ app.post("/api/data", async (req, res) => {
 
   try {
     const now = new Date();
+    lastSeen[machineId] = now;
 
     // prvi put
     if (!lastState[machineId]) {
@@ -161,3 +163,15 @@ app.get("/api/stats/percent", async (req, res) => {
 // =======================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server radi na portu", PORT));
+
+setInterval(() => {
+  const now = new Date();
+
+  for (let machineId in lastSeen) {
+    const diff = (now - lastSeen[machineId]) / 1000;
+
+    if (diff > 30) {
+      console.log(`🚨 ${machineId} OFFLINE! (${Math.floor(diff)}s)`);
+    }
+  }
+}, 10000);
