@@ -78,28 +78,36 @@ async function loadStats() {
 
 // 🟢 LIVE STATUS
 async function loadLive() {
-  const res = await fetch(API_LIVE);
+  const res = await fetch("/api/data");
   const data = await res.json();
 
-  if (!data) return;
+  if (!data || data.length === 0) return;
 
+  const current = data[0];   // najnoviji zapis
+  const previous = data[1];  // prethodni zapis
+
+  // 🎨 boje za trenutno stanje
   let color = "black";
+  if (current.state === "RAD") color = "green";
+  if (current.state === "ZASTOJ") color = "red";
+  if (current.state === "PRIPREMA") color = "orange";
 
-  if (data.state === "RAD") color = "green";
-  if (data.state === "ZASTOJ") color = "red";
-  if (data.state === "PRIPREMA") color = "orange";
-
+  // 🟢 trenutno stanje (bez trajanja)
   document.getElementById("status").innerHTML =
     `<span style="color:${color}">
-      Status: ${data.state} (${data.duration}s)
+      Trenutno stanje: ${current.state}
     </span>`;
 
-  // 🚨 ALARM
-  if (data.state === "ZASTOJ" && data.duration > 60) {
-    document.getElementById("alarm").innerText =
-      "⚠️ ALARM: Dug zastoj!";
-  } else {
-    document.getElementById("alarm").innerText = "";
+  // ⏱️ prethodno stanje + trajanje
+  if (previous) {
+    document.getElementById("alarm").innerHTML =
+      `Prethodno: ${previous.state} (${previous.duration}s)`;
+  }
+
+  // 🚨 alarm ako je prethodni bio dug zastoj
+  if (previous && previous.state === "ZASTOJ" && previous.duration > 60) {
+    document.getElementById("alarm").innerHTML +=
+      `<br>⚠️ ALARM: Dug zastoj!`;
   }
 }
 
