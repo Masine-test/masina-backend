@@ -64,11 +64,11 @@ app.post("/api/data", async (req, res) => {
     lastState[machineId] = state;
     lastChangeTime[machineId] = now;
 
-    res.json({ status: "changed" });
+    return res.json({ status: "changed" });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
+    console.error(err);
+    return res.status(500).send("error");
   }
 });
 
