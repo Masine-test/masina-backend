@@ -2,132 +2,99 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Mašina Dashboard</title>
+  <title>Dashboard mašina</title>
 
-  <!-- Tabler CSS -->
   <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .machine-card {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .status {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .timer {
+      font-size: 16px;
+      color: gray;
+    }
+
+    .offline {
+      color: gray;
+    }
+
+    .rad { color: green; }
+    .zastoj { color: red; }
+    .priprema { color: orange; }
+  </style>
 </head>
 
 <body class="layout-fluid">
 
-<div class="page">
-  <div class="container-xl">
+<div class="container-xl mt-4">
 
-    <h1 class="mt-4 mb-4">🏭 Dashboard mašine</h1>
+  <h1>🏭 Sve mašine</h1>
 
-    <!-- STATUS CARD -->
-    <div class="row">
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-body text-center">
-            <h3 id="status">Učitavanje...</h3>
-            <div id="timer" class="text-muted"></div>
-            <div id="alarm" class="text-danger mt-2"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="row" id="machines"></div>
 
-    <!-- CHART -->
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Statistika</h3>
-          </div>
-          <div class="card-body">
-            <canvas id="chart"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
 </div>
 
 <script>
-const API_DATA = "/api/data";
-const API_STATS = "/api/stats";
+const API = "/api/machines";
 
-let chart;
-let currentStartTime = null;
+let startTimes = {};
 
-// 🎨 boje
-function getColor(state) {
-  if (state === "RAD") return "green";
-  if (state === "ZASTOJ") return "red";
-  if (state === "PRIPREMA") return "orange";
-  return "gray";
+function getClass(state) {
+  if (state === "RAD") return "rad";
+  if (state === "ZASTOJ") return "zastoj";
+  if (state === "PRIPREMA") return "priprema";
+  return "offline";
 }
 
-// 🟢 LIVE STATUS
-async function loadLive() {
-  const res = await fetch(API_DATA);
+async function loadMachines() {
+  const res = await fetch(API);
   const data = await res.json();
 
-  if (!data || data.length === 0) return;
+  const container = document.getElementById("machines");
+  container.innerHTML = "";
 
-  const current = data[0];
+  data.forEach(m => {
 
-  document.getElementById("status").innerHTML =
-    `<span style="color:${getColor(current.state)}">
-      ${current.state}
-    </span>`;
-
-  currentStartTime = new Date(current.created_at);
-
-  // alarm
-  if (current.state === "ZASTOJ") {
-    document.getElementById("alarm").innerText = "⚠️ ZASTOJ!";
-  } else {
-    document.getElementById("alarm").innerText = "";
-  }
-}
-
-// ⏱️ TIMER
-setInterval(() => {
-  if (!currentStartTime) return;
-
-  const diff = Math.floor((new Date() - currentStartTime) / 1000);
-  document.getElementById("timer").innerText = `Trajanje: ${diff}s`;
-}, 1000);
-
-// 📊 STATISTIKA
-async function loadStats() {
-  const res = await fetch(API_STATS);
-  const data = await res.json();
-
-  const labels = data.map(d => d.state);
-  const values = data.map(d => Number(d.total_duration));
-
-  const ctx = document.getElementById("chart");
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [{
-        label: "Vrijeme (s)",
-        data: values
-      }]
+    if (!startTimes[m.machine_id]) {
+      startTimes[m.machine_id] = new Date(m.created_at);
     }
+
+    const div = document.createElement("div");
+    div.className = "col-md-3";
+
+    div.innerHTML = `
+      <div class="card machine-card">
+        <h3>${m.machine_id}</h3>
+        <div class="status ${getClass(m.state)}">
+          ${m.state}
+        </div>
+        <div class="timer" id="t_${m.machine_id}"></div>
+      </div>
+    `;
+
+    container.appendChild(div);
   });
 }
 
-// 🔄 REFRESH
-setInterval(loadLive, 5000);
-setInterval(loadStats, 10000);
+// ⏱️ timer update
+setInterval(() => {
+  for (let id in startTimes) {
+    const diff = Math.floor((new Date() - startTimes[id]) / 1000);
+    const el = document.getElementById("t_" + id);
+    if (el) el.innerText = `Trajanje: ${diff}s`;
+  }
+}, 1000);
 
-// START
-window.onload = () => {
-  loadLive();
-  loadStats();
-};
+setInterval(loadMachines, 5000);
+window.onload = loadMachines;
 </script>
 
 </body>
