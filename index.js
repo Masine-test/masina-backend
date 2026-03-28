@@ -20,22 +20,57 @@ const pool = new Pool({
 // =======================
 // 📥 POST PODATAKA (ESP)
 // =======================
-app.post("/api/data", async (req, res) => {
-  const { machineId, state, duration } = req.body;
+let lastState = {};
+let lastChangeTime = {};
 
-  // 🔍 log za debug
+app.post("/api/data", async (req, res) => {
+  const { machineId, state } = req.body;
+
   console.log("DATA:", req.body);
 
-  // ❗ validacija
-  if (!machineId || !state || duration == null) {
+  if (!machineId || !state) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
   try {
+    const now = new Date();
+
+    // prvi put
+    if (!lastState[machineId]) {
+      lastState[machineId] = state;
+      lastChangeTime[machineId] = now;
+
+      console.log("INIT stanje:", state);
+      return res.json({ status: "init" });
+    }
+
+    // nema promjene
+    if (state === lastState[machineId]) {
+      return res.json({ status: "no change" });
+    }
+
+    // promjena
+    const duration = Math.floor((now - lastChangeTime[machineId]) / 1000);
+
+    console.log("PROMJENA:", lastState[machineId], "→", state);
+    console.log("Trajanje:", duration, "s");
+
     await pool.query(
       "INSERT INTO events (machine_id, state, duration) VALUES ($1, $2, $3)",
-      [machineId, state, duration]
+      [machineId, lastState[machineId], duration]
     );
+
+    // update
+    lastState[machineId] = state;
+    lastChangeTime[machineId] = now;
+
+    res.json({ status: "changed" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("error");
+  }
+});
 
     // 🚨 ALARM LOGIKA
     if (state === "ZASTOJ" && duration > 60) {
