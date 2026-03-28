@@ -40,6 +40,12 @@ let offlineTriggered = {};
 app.post("/api/data", async (req, res) => {
   const { machineId, state } = req.body;
 
+  const now = new Date();
+
+  // 🔥 BITNO — uvijek update
+  lastSeen[machineId] = now;
+  offlineTriggered[machineId] = false;
+
   console.log("DATA:", req.body);
 
   if (!machineId || !state) {
