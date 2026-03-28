@@ -199,12 +199,21 @@ setInterval(() => {
   const now = new Date();
 
   for (let machineId of machines) {
+
+    // ako nikad nije poslala podatke
+    if (!lastSeen[machineId]) {
+      if (!offlineTriggered[machineId]) {
+        offlineTriggered[machineId] = true;
+        console.log(`🚨 ${machineId} OFFLINE (nikad nije online)`);
+      }
+      continue;
+    }
+
     const diff = (now - lastSeen[machineId]) / 1000;
 
     if (diff > 30 && !offlineTriggered[machineId]) {
-  offlineTriggered[machineId] = true;
-
-  console.log(`🚨 ${machineId} OFFLINE!`);
-}
+      offlineTriggered[machineId] = true;
+      console.log(`🚨 ${machineId} OFFLINE (${Math.floor(diff)}s)`);
+    }
   }
 }, 10000);
