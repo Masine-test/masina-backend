@@ -3,18 +3,43 @@
 <head>
   <title>Mašina Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: #f5f5f5;
+    }
+    h2 {
+      margin-top: 20px;
+    }
+    #status {
+      font-size: 20px;
+      margin: 10px;
+    }
+    canvas {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+  </style>
 </head>
 <body>
 
 <h2>Dashboard mašine</h2>
 
+<h3 id="status">Status: učitavanje...</h3>
+
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const API = "/api/stats";
+const API_STATS = "/api/stats";
+const API_DATA = "/api/data";
 
+let chart;
+
+// 📊 GRAF
 async function loadData() {
-  const res = await fetch(API);
+  const res = await fetch(API_STATS);
   const data = await res.json();
 
   const labels = data.map(d => d.state);
@@ -22,7 +47,11 @@ async function loadData() {
 
   const ctx = document.getElementById("chart");
 
-  new Chart(ctx, {
+  if (chart) {
+    chart.destroy();
+  }
+
+  chart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: labels,
@@ -34,7 +63,27 @@ async function loadData() {
   });
 }
 
-window.onload = loadData;
+// 🟢 LIVE STATUS
+async function loadLive() {
+  const res = await fetch(API_DATA);
+  const data = await res.json();
+
+  if (data.length > 0) {
+    document.getElementById("status").innerText =
+      "Status: " + data[0].state + 
+      " (" + data[0].duration + "s)";
+  }
+}
+
+// 🔄 AUTO REFRESH
+setInterval(loadData, 5000);
+setInterval(loadLive, 3000);
+
+// 🚀 START
+window.onload = () => {
+  loadData();
+  loadLive();
+};
 </script>
 
 </body>
