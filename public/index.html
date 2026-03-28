@@ -73,7 +73,7 @@ async function loadMachines() {
     div.innerHTML = `
       <div class="card machine-card">
         <h3>${m.machine_id}</h3>
-        <div class="status ${getClass(m.state)}">
+        <div class="status ${getClass(m.state, m.status)}">
           ${m.state}
         </div>
         <div class="timer" id="t_${m.machine_id}"></div>
