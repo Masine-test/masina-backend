@@ -3,19 +3,30 @@
 <head>
   <title>Mašina Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: Arial;
       text-align: center;
       background: #f5f5f5;
     }
+
     h2 {
       margin-top: 20px;
     }
+
     #status {
-      font-size: 20px;
+      font-size: 22px;
       margin: 10px;
     }
+
+    #alarm {
+      font-size: 20px;
+      margin: 10px;
+      color: red;
+      font-weight: bold;
+    }
+
     canvas {
       background: white;
       padding: 20px;
@@ -23,22 +34,24 @@
     }
   </style>
 </head>
+
 <body>
 
 <h2>Dashboard mašine</h2>
 
 <h3 id="status">Status: učitavanje...</h3>
+<h3 id="alarm"></h3>
 
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
 const API_STATS = "/api/stats";
-const API_DATA = "/api/live";
+const API_LIVE = "/api/live";
 
 let chart;
 
 // 📊 GRAF
-async function loadData() {
+async function loadStats() {
   const res = await fetch(API_STATS);
   const data = await res.json();
 
@@ -65,23 +78,38 @@ async function loadData() {
 
 // 🟢 LIVE STATUS
 async function loadLive() {
-  const res = await fetch(API_DATA);
+  const res = await fetch(API_LIVE);
   const data = await res.json();
 
-  if (data.length > 0) {
-    document.getElementById("status").innerText =
-      "Status: " + data[0].state + 
-      " (" + data[0].duration + "s)";
+  if (!data) return;
+
+  let color = "black";
+
+  if (data.state === "RAD") color = "green";
+  if (data.state === "ZASTOJ") color = "red";
+  if (data.state === "PRIPREMA") color = "orange";
+
+  document.getElementById("status").innerHTML =
+    `<span style="color:${color}">
+      Status: ${data.state} (${data.duration}s)
+    </span>`;
+
+  // 🚨 ALARM
+  if (data.state === "ZASTOJ" && data.duration > 60) {
+    document.getElementById("alarm").innerText =
+      "⚠️ ALARM: Dug zastoj!";
+  } else {
+    document.getElementById("alarm").innerText = "";
   }
 }
 
 // 🔄 AUTO REFRESH
-setInterval(loadData, 5000);
-setInterval(loadLive, 3000);
+setInterval(loadStats, 5000);
+setInterval(loadLive, 2000);
 
 // 🚀 START
 window.onload = () => {
-  loadData();
+  loadStats();
   loadLive();
 };
 </script>
