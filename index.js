@@ -1,3 +1,16 @@
+const machines = [
+  "masina_01",
+  "masina_02",
+  "masina_03",
+  "masina_04",
+  "masina_05",
+  "masina_06",
+  "masina_07",
+  "masina_08",
+  "masina_09",
+  "masina_10"
+];
+
 const express = require("express");
 const { Pool } = require("pg");
 const path = require("path");
@@ -185,7 +198,7 @@ app.listen(PORT, () => console.log("Server radi na portu", PORT));
 setInterval(() => {
   const now = new Date();
 
-  for (let machineId in lastSeen) {
+  for (let machineId of machines) {
     const diff = (now - lastSeen[machineId]) / 1000;
 
     if (diff > 30 && !offlineTriggered[machineId]) {
