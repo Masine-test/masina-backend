@@ -106,7 +106,7 @@ app.post("/api/data", async (req, res) => {
 // =======================
 // 🏭 SVE MAŠINE (zadnje stanje)
 // =======================
-app.get("/api/machines", async (req, res) => {
+app.get("/api/machines/all", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT ON (machine_id) *
@@ -114,7 +114,27 @@ app.get("/api/machines", async (req, res) => {
       ORDER BY machine_id, created_at DESC
     `);
 
-    res.json(result.rows);
+    const dbMachines = result.rows;
+
+    const map = {};
+
+    dbMachines.forEach(m => {
+      map[m.machine_id] = m;
+    });
+
+    const fullList = machines.map(id => {
+      if (map[id]) {
+        return map[id];
+      } else {
+        return {
+          machine_id: id,
+          state: "OFFLINE",
+          created_at: new Date()
+        };
+      }
+    });
+
+    res.json(fullList);
 
   } catch (err) {
     console.log(err);
