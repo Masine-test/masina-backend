@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mašina Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h2>Dashboard mašine</h2>
+
+<canvas id="chart" width="400" height="200"></canvas>
+
+<script>
+const API = "/api/stats";
+
+async function loadData() {
+  const res = await fetch(API);
+  const data = await res.json();
+
+  const labels = data.map(d => d.state);
+  const values = data.map(d => Number(d.total_duration));
+
+  const ctx = document.getElementById("chart");
+
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Ukupno vrijeme (s)",
+        data: values
+      }]
+    }
+  });
+}
+
+window.onload = loadData;
+</script>
+
+</body>
+</html>
