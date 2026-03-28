@@ -29,6 +29,15 @@
     .rad { color: green; }
     .zastoj { color: red; }
     .priprema { color: orange; }
+
+    /* 🔥 BLINK za OFFLINE */
+    .blink {
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.3; }
+    }
   </style>
 </head>
 
@@ -47,11 +56,24 @@ const API = "/api/machines/all";
 
 let startTimes = {};
 
-function getClass(state) {
+// 🎯 BOJE + STATUS LOGIKA
+function getClass(state, status) {
+  if (status === "OFFLINE") return "zastoj blink"; // 🔴 + blink
+  if (status === "NEVER") return "offline";        // ⚫
+
   if (state === "RAD") return "rad";
   if (state === "ZASTOJ") return "zastoj";
   if (state === "PRIPREMA") return "priprema";
+
   return "offline";
+}
+
+// 🎯 LABEL ZA PRIKAZ
+function getLabel(state, status) {
+  if (status === "OFFLINE") return "OFFLINE";
+  if (status === "NEVER") return "NEVER";
+
+  return state;
 }
 
 async function loadMachines() {
@@ -63,8 +85,9 @@ async function loadMachines() {
 
   data.forEach(m => {
 
-    if (!startTimes[m.machine_id]) {
-      startTimes[m.machine_id] = new Date(m.created_at);
+    // ⏱️ samo ako postoji vrijeme
+    if (!startTimes[m.machine_id] && m.last_seen) {
+      startTimes[m.machine_id] = new Date(m.last_seen);
     }
 
     const div = document.createElement("div");
@@ -73,9 +96,15 @@ async function loadMachines() {
     div.innerHTML = `
       <div class="card machine-card">
         <h3>${m.machine_id}</h3>
+
         <div class="status ${getClass(m.state, m.status)}">
-          ${m.state}
+          ${getLabel(m.state, m.status)}
         </div>
+
+        <div style="font-size:12px; color:gray;">
+          ${m.status}
+        </div>
+
         <div class="timer" id="t_${m.machine_id}"></div>
       </div>
     `;
@@ -84,15 +113,19 @@ async function loadMachines() {
   });
 }
 
-// ⏱️ timer update
+// ⏱️ TIMER
 setInterval(() => {
   for (let id in startTimes) {
+    if (!startTimes[id]) continue;
+
     const diff = Math.floor((new Date() - startTimes[id]) / 1000);
     const el = document.getElementById("t_" + id);
+
     if (el) el.innerText = `Trajanje: ${diff}s`;
   }
 }, 1000);
 
+// 🔄 refresh
 setInterval(loadMachines, 5000);
 window.onload = loadMachines;
 </script>
