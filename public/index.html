@@ -1,66 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <title>Mašina Dashboard</title>
+
+  <!-- Tabler CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <style>
-    body {
-      font-family: Arial;
-      background: #0f172a;
-      color: white;
-      text-align: center;
-    }
-
-    h2 {
-      margin: 20px;
-    }
-
-    .card {
-      background: #1e293b;
-      border-radius: 15px;
-      padding: 20px;
-      margin: 20px auto;
-      width: 300px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.3);
-    }
-
-    .status {
-      font-size: 28px;
-      font-weight: bold;
-    }
-
-    .timer {
-      font-size: 22px;
-      margin-top: 10px;
-    }
-
-    .alarm {
-      color: red;
-      font-weight: bold;
-      margin-top: 10px;
-    }
-
-    canvas {
-      background: white;
-      border-radius: 10px;
-      padding: 10px;
-    }
-  </style>
 </head>
 
-<body>
+<body class="layout-fluid">
 
-<h2>🏭 Dashboard mašine</h2>
+<div class="page">
+  <div class="container-xl">
 
-<div class="card">
-  <div id="status" class="status">Učitavanje...</div>
-  <div id="timer" class="timer"></div>
-  <div id="alarm" class="alarm"></div>
-</div>
+    <h1 class="mt-4 mb-4">🏭 Dashboard mašine</h1>
 
-<div class="card">
-  <canvas id="chart"></canvas>
+    <!-- STATUS CARD -->
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body text-center">
+            <h3 id="status">Učitavanje...</h3>
+            <div id="timer" class="text-muted"></div>
+            <div id="alarm" class="text-danger mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Statistika</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
@@ -72,13 +57,45 @@ let currentStartTime = null;
 
 // 🎨 boje
 function getColor(state) {
-  if (state === "RAD") return "lime";
+  if (state === "RAD") return "green";
   if (state === "ZASTOJ") return "red";
   if (state === "PRIPREMA") return "orange";
   return "gray";
 }
 
-// 📊 GRAF
+// 🟢 LIVE STATUS
+async function loadLive() {
+  const res = await fetch(API_DATA);
+  const data = await res.json();
+
+  if (!data || data.length === 0) return;
+
+  const current = data[0];
+
+  document.getElementById("status").innerHTML =
+    `<span style="color:${getColor(current.state)}">
+      ${current.state}
+    </span>`;
+
+  currentStartTime = new Date(current.created_at);
+
+  // alarm
+  if (current.state === "ZASTOJ") {
+    document.getElementById("alarm").innerText = "⚠️ ZASTOJ!";
+  } else {
+    document.getElementById("alarm").innerText = "";
+  }
+}
+
+// ⏱️ TIMER
+setInterval(() => {
+  if (!currentStartTime) return;
+
+  const diff = Math.floor((new Date() - currentStartTime) / 1000);
+  document.getElementById("timer").innerText = `Trajanje: ${diff}s`;
+}, 1000);
+
+// 📊 STATISTIKA
 async function loadStats() {
   const res = await fetch(API_STATS);
   const data = await res.json();
@@ -101,43 +118,6 @@ async function loadStats() {
     }
   });
 }
-
-// 🟢 LIVE STATUS
-async function loadLive() {
-  const res = await fetch(API_DATA);
-  const data = await res.json();
-
-  if (!data || data.length === 0) return;
-
-  const current = data[0];
-
-  // status
-  document.getElementById("status").innerHTML =
-    `<span style="color:${getColor(current.state)}">
-      ${current.state}
-    </span>`;
-
-  // vrijeme početka
-  currentStartTime = new Date(current.created_at);
-
-  // alarm
-  if (current.state === "ZASTOJ") {
-    document.getElementById("alarm").innerHTML = "⚠️ ZASTOJ!";
-  } else {
-    document.getElementById("alarm").innerHTML = "";
-  }
-}
-
-// ⏱️ LIVE TIMER
-setInterval(() => {
-  if (!currentStartTime) return;
-
-  const now = new Date();
-  const diff = Math.floor((now - currentStartTime) / 1000);
-
-  document.getElementById("timer").innerText =
-    `Trajanje: ${diff}s`;
-}, 1000);
 
 // 🔄 REFRESH
 setInterval(loadLive, 5000);
