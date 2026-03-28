@@ -22,6 +22,7 @@ const pool = new Pool({
 let lastState = {};
 let lastChangeTime = {};
 let lastSeen = {};
+let offlineTriggered = {};
 
 app.post("/api/data", async (req, res) => {
   const { machineId, state } = req.body;
@@ -35,6 +36,7 @@ app.post("/api/data", async (req, res) => {
   try {
     const now = new Date();
     lastSeen[machineId] = now;
+    offlineTriggered[machineId] = false;
 
     // prvi put
     if (!lastState[machineId]) {
@@ -170,8 +172,10 @@ setInterval(() => {
   for (let machineId in lastSeen) {
     const diff = (now - lastSeen[machineId]) / 1000;
 
-    if (diff > 30) {
-      console.log(`🚨 ${machineId} OFFLINE! (${Math.floor(diff)}s)`);
-    }
+    if (diff > 30 && !offlineTriggered[machineId]) {
+  offlineTriggered[machineId] = true;
+
+  console.log(`🚨 ${machineId} OFFLINE!`);
+}
   }
 }, 10000);
