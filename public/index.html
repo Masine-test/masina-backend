@@ -20,24 +20,12 @@
     .timer {
       font-size: 16px;
       color: gray;
-      min-height: 20px; /* 🔥 sprječava skakanje */
     }
 
     .offline { color: gray; }
     .rad { color: green; }
     .zastoj { color: red; }
     .priprema { color: orange; }
-
-    .stats {
-      font-size: 13px;
-      margin-top: 10px;
-      text-align: left;
-    }
-
-    .eff {
-      margin-top: 10px;
-      font-weight: bold;
-    }
 
     .blink {
       animation: blink 1s infinite;
@@ -53,27 +41,21 @@
 
 <div class="container-xl mt-4">
 
-  <!-- HEADER -->
-  <div class="row mb-3">
-    <div class="col-md-6">
-      <h1>🏭 Sve mašine</h1>
-    </div>
-
-    <div class="col-md-6 text-end">
-      <a href="/history.html" class="btn btn-primary">
-        📅 Historija
-      </a>
-    </div>
+  <div class="mb-3">
+    <a href="/history.html" class="btn btn-primary">📅 Historija</a>
   </div>
 
-  <!-- DATUM + SMJENA -->
-  <div class="row mb-3 text-center">
-    <h3 id="datetime"></h3>
-    <h4 id="shift"></h4>
-  </div>
+  <h1>🏭 Sve mašine</h1>
 
-  <!-- KARTICE -->
   <div class="row" id="machines"></div>
+
+  <!-- 🕒 DATUM I SMJENA -->
+  <div class="row mt-4">
+    <div class="col-md-12 text-center">
+      <h3 id="datetime"></h3>
+      <h4 id="shift"></h4>
+    </div>
+  </div>
 
 </div>
 
@@ -83,8 +65,9 @@ const STATS_API = "/api/shift-stats";
 
 let startTimes = {};
 let lastStates = {};
+let shiftStart = null;
 
-// 🎨 boje
+// 🎯 BOJE
 function getClass(state, status) {
   if (status === "OFFLINE") return "zastoj blink";
   if (status === "NEVER") return "offline";
@@ -96,30 +79,32 @@ function getClass(state, status) {
   return "offline";
 }
 
-// 🏷️ label
+// 🎯 LABEL
 function getLabel(state, status) {
   if (status === "OFFLINE") return "OFFLINE";
   if (status === "NEVER") return "NEVER";
   return state;
 }
 
-// ⏱️ format vremena
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+// ⏱️ format
+function formatTime(sec) {
+  sec = Math.floor(sec || 0);
+
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
 
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-// 🕐 smjena
+// 🕒 smjena label
 function getShift(hour) {
   if (hour >= 7 && hour < 16) return "I smjena (07-16h)";
   if (hour >= 16) return "II smjena (16-24h)";
   return "III smjena (00-07h)";
 }
 
-// 🕐 vrijeme + smjena
+// 🕒 vrijeme
 function updateDateTime() {
   const now = new Date();
 
@@ -130,28 +115,20 @@ function updateDateTime() {
     getShift(now.getHours());
 }
 
-// 🚀 MAIN LOAD
+// 🔥 GLAVNA FUNKCIJA
 async function loadMachines() {
   const res = await fetch(API);
-  const data = await res.json();
+  const machines = await res.json();
 
-  // const statsRes = await fetch(STATS_API);
-  // const stats = await statsRes.json();
-  let stats = {};
-
-try {
   const statsRes = await fetch(STATS_API);
-const statsJson = await statsRes.json();
+  const statsJson = await statsRes.json();
 
-const stats = statsJson.data;
-const shiftStart = new Date(statsJson.shiftStart);
-} catch (e) {
-  console.log("Stats API error:", e);
-}
+  const stats = statsJson.data;
+  shiftStart = new Date(statsJson.shiftStart);
 
   const container = document.getElementById("machines");
 
-  data.forEach(m => {
+  machines.forEach(m => {
 
     const s = stats[m.machine_id] || {};
 
@@ -173,12 +150,18 @@ const shiftStart = new Date(statsJson.shiftStart);
           <h3>${m.machine_id}</h3>
 
           <div class="status" id="s_${m.machine_id}"></div>
-          <div style="font-size:12px; color:gray;" id="st_${m.machine_id}"></div>
+          <div id="st_${m.machine_id}" style="font-size:12px;color:gray;"></div>
+          <div class="timer" id="t_${m.machine_id}"></div>
 
-          <div class="timer" id="t_${m.machine_id}">--:--:--</div>
+          <div style="margin-top:10px;text-align:left;font-size:13px;">
+            🟢 RAD: ${rad}<br>
+            🟠 PRIPREMA: ${priprema}<br>
+            🔴 ZASTOJ: ${zastoj}
+          </div>
 
-          <div class="stats" id="stats_${m.machine_id}"></div>
-          <div class="eff" id="eff_${m.machine_id}"></div>
+          <div style="margin-top:10px;font-weight:bold;">
+            ⚙️ Efikasnost: ${eff}%
+          </div>
         </div>
       `;
 
@@ -188,66 +171,47 @@ const shiftStart = new Date(statsJson.shiftStart);
     // 🔄 UPDATE STATUS
     const statusEl = document.getElementById("s_" + m.machine_id);
     const labelEl = document.getElementById("st_" + m.machine_id);
-    const statsEl = document.getElementById("stats_" + m.machine_id);
-    const effEl = document.getElementById("eff_" + m.machine_id);
 
     statusEl.className = "status " + getClass(m.state, m.status);
-
-    statusEl.innerHTML = `
-      <span class="${m.status === 'OFFLINE' ? 'blink' : ''}">
-        ${getLabel(m.state, m.status)}
-      </span>
-    `;
-
+    statusEl.innerHTML = `<span>${getLabel(m.state, m.status)}</span>`;
     labelEl.innerText = m.status;
 
-    // 📊 UPDATE STATS (bez reload kartice)
-    statsEl.innerHTML = `
-      🟢 RAD: ${rad}<br>
-      🟠 PRIPREMA: ${priprema}<br>
-      🔴 ZASTOJ: ${zastoj}
-    `;
-
-    effEl.innerText = `⚙️ Efikasnost: ${eff}%`;
-
-    // ⏱️ TIMER RESET (FIXED)
+    // 🔥 RESET LOGIKA (GLAVNI FIX)
     if (
-  !startTimes[m.machine_id] ||
-  startTimes[m.machine_id] < shiftStart ||
-  lastStates[m.machine_id] !== (m.state + m.status)
-) {
-  startTimes[m.machine_id] = new Date(
-    m.created_at && new Date(m.created_at) > shiftStart
-      ? m.created_at
-      : shiftStart
-  );
+      !startTimes[m.machine_id] ||
+      startTimes[m.machine_id] < shiftStart ||
+      lastStates[m.machine_id] !== (m.state + m.status)
+    ) {
+      startTimes[m.machine_id] = new Date(
+        m.created_at && new Date(m.created_at) > shiftStart
+          ? m.created_at
+          : shiftStart
+      );
 
-  lastStates[m.machine_id] = m.state + m.status;
-}
+      lastStates[m.machine_id] = m.state + m.status;
+    }
   });
 }
 
-// ⏱️ TIMER LIVE
+// ⏱️ TIMER
 setInterval(() => {
   for (let id in startTimes) {
-    const el = document.getElementById("t_" + id);
-    if (!el) continue;
+    if (!startTimes[id]) continue;
 
     const diff = Math.floor((new Date() - startTimes[id]) / 1000);
-    el.innerText = `Trajanje: ${formatTime(diff)}`;
+    const el = document.getElementById("t_" + id);
+
+    if (el) el.innerText = "Trajanje: " + formatTime(diff);
   }
 }, 1000);
 
-// 🔄 refresh podataka
+// 🔄 refresh
 setInterval(loadMachines, 5000);
+window.onload = loadMachines;
 
-// 🟢 INIT
-window.onload = () => {
-  loadMachines();
-  updateDateTime();
-};
-
+// 🕒 vrijeme refresh
 setInterval(updateDateTime, 1000);
+updateDateTime();
 </script>
 
 </body>
