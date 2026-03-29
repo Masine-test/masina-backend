@@ -145,8 +145,15 @@ async function loadMonth() {
   const year = d.getFullYear();
   const month = d.getMonth() + 1;
 
-  const res = await fetch(`${MONTH_API}?machine=${machine}&year=${year}&month=${month}`);
-  const data = await res.json();
+  let data = {};
+
+  try {
+    const res = await fetch(`${MONTH_API}?machine=${machine}&year=${year}&month=${month}`);
+    data = await res.json();
+  } catch (e) {
+    console.log("Month API error:", e);
+    data = {};
+  }
 
   const container = document.getElementById("calendar");
   container.innerHTML = "";
@@ -215,6 +222,7 @@ const today = new Date().toISOString().split("T")[0];
 document.getElementById("date").value = today;
 selectedDay = new Date().getDate();
 
+loadMonth();
 loadData();
 </script>
 
