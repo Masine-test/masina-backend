@@ -1,168 +1,221 @@
 <!DOCTYPE html>
-<html lang="bs">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Historija</title>
+  <meta charset="utf-8">
+  <title>Historija</title>
 
-<style>
-body {
-  font-family: Arial;
-  background: #0f172a;
-  color: white;
-  text-align: center;
-}
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
 
-/* 📅 KALENDAR */
-.calendar {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 5px;
-  max-width: 400px;
-  margin: 20px auto;
-}
+  <style>
+    .shift-card {
+      padding: 15px;
+      margin-top: 15px;
+    }
 
-.day {
-  padding: 10px;
-  background: #1e293b;
-  cursor: pointer;
-  border-radius: 6px;
-}
+    .calendar-day {
+      cursor: pointer;
+      transition: 0.2s;
+      min-height: 90px;
+    }
 
-.day:hover {
-  background: #334155;
-}
+    .calendar-day:hover {
+      transform: scale(1.05);
+    }
 
-.day.selected {
-  background: #22c55e;
-  color: black;
-  font-weight: bold;
-}
-
-/* 📊 BOX */
-.box {
-  background: #1e293b;
-  padding: 15px;
-  margin: 10px auto;
-  width: 300px;
-  border-radius: 10px;
-}
-
-</style>
+    /* 🔥 AKTIVNI DAN */
+    .active-day {
+      border: 3px solid #0d6efd;
+      transform: scale(1.05);
+    }
+  </style>
 </head>
 
-<body>
+<body class="layout-fluid">
 
-<h2>📅 Historija po danima</h2>
+<div class="container-xl mt-4">
 
-<select id="machine">
-  <option value="masina_01">Masina 01</option>
-  <option value="masina_02">Masina 02</option>
-  <option value="masina_03">Masina 03</option>
-  <option value="masina_04">Masina 04</option>
-  <option value="masina_05">Masina 05</option>
-</select>
+  <div class="mb-3">
+    <a href="/" class="btn btn-secondary">⬅️ Početna</a>
+  </div>
 
-<div class="calendar" id="calendar"></div>
+  <h1>📅 Historija mašine</h1>
 
-<div id="result"></div>
+  <div class="row mb-3">
+
+    <div class="col-md-4">
+      <select id="machine" class="form-select" onchange="reloadAll()">
+        <option value="masina_01">masina_01</option>
+        <option value="masina_02">masina_02</option>
+        <option value="masina_03">masina_03</option>
+        <option value="masina_04">masina_04</option>
+        <option value="masina_05">masina_05</option>
+        <option value="masina_06">masina_06</option>
+        <option value="masina_07">masina_07</option>
+        <option value="masina_08">masina_08</option>
+        <option value="masina_09">masina_09</option>
+        <option value="masina_10">masina_10</option>
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <input type="date" id="date" class="form-control" onchange="reloadAll()">
+    </div>
+
+    <div class="col-md-4">
+      <button class="btn btn-primary w-100" onclick="loadData()">
+        🔍 Prikaži
+      </button>
+    </div>
+
+  </div>
+
+  <h3>📅 Kalendar</h3>
+  <div class="row row-cols-7 g-2" id="calendar"></div>
+
+  <div id="result"></div>
+
+</div>
 
 <script>
-const calendar = document.getElementById("calendar");
-const result = document.getElementById("result");
-const machineSelect = document.getElementById("machine");
+const DAY_API = "/api/day-shift-stats";
+const MONTH_API = "/api/month-stats";
 
 let selectedDay = null;
 
-// 📅 GENERATE DAYS
-function generateCalendar() {
-  calendar.innerHTML = "";
+// =======================
+// FORMAT
+// =======================
+function formatTime(sec) {
+  let h = Math.floor(sec/3600);
+  let m = Math.floor((sec%3600)/60);
+  let s = sec%60;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
 
-  for (let i = 1; i <= 31; i++) {
+// =======================
+// 📊 DAN
+// =======================
+async function loadData(dateOverride = null) {
+  const machine = document.getElementById("machine").value;
+  const date = dateOverride || document.getElementById("date").value;
+
+  if (!date) return;
+
+  selectedDay = new Date(date).getDate();
+  document.getElementById("date").value = date;
+
+  const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
+  const data = await res.json();
+
+  const div = document.getElementById("result");
+  div.innerHTML = "";
+
+  for (let s in data) {
+    const d = data[s];
+
+    div.innerHTML += `
+      <div class="card shift-card">
+        <h3>${s} smjena</h3>
+
+        <div>🟢 RAD: ${formatTime(d.RAD)}</div>
+        <div>🟠 PRIPREMA: ${formatTime(d.PRIPREMA)}</div>
+        <div>🔴 ZASTOJ: ${formatTime(d.ZASTOJ)}</div>
+        <div>⚫ NEAKTIVNA: ${formatTime(d.NEAKTIVNA)}</div>
+
+        <div style="margin-top:10px; font-weight:bold;">
+          ⚙️ Efikasnost: ${d.efficiency}%
+        </div>
+      </div>
+    `;
+  }
+
+  loadMonth(); // 🔥 refresh kalendara sa highlight
+}
+
+// =======================
+// 📅 MJESEC
+// =======================
+async function loadMonth() {
+  const machine = document.getElementById("machine").value;
+  const date = document.getElementById("date").value;
+
+  if (!date) return;
+
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+
+  const res = await fetch(`${MONTH_API}?machine=${machine}&year=${year}&month=${month}`);
+  const data = await res.json();
+
+  const container = document.getElementById("calendar");
+  container.innerHTML = "";
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  for (let i = 1; i <= daysInMonth; i++) {
+
+    const day = data[i.toString()] || { RAD: 0, eff: 0 };
+
+    const color =
+      day.eff > 70 ? "#d4edda" :
+      day.eff > 40 ? "#fff3cd" :
+      "#f8d7da";
+
+    const isActive = (i === selectedDay);
+
     const div = document.createElement("div");
-    div.className = "day";
-    div.innerText = i;
+    div.className = "col";
 
-    div.onclick = () => selectDay(i, div);
+    div.innerHTML = `
+      <div class="card calendar-day text-center p-2 ${isActive ? "active-day" : ""}"
+           style="background:${color}"
+           onclick="selectDay(${i})">
 
-    calendar.appendChild(div);
+        <strong>${i}</strong>
+
+        <div style="font-size:12px">
+          ${formatTime(day.RAD)}
+        </div>
+
+        <div style="font-size:12px; font-weight:bold;">
+          ${day.eff || 0}%
+        </div>
+
+      </div>
+    `;
+
+    container.appendChild(div);
   }
 }
 
-// 📅 SELECT DAY
-function selectDay(day, element) {
+// =======================
+// 🖱️ SELECT
+// =======================
+function selectDay(day) {
+  const d = new Date(document.getElementById("date").value);
+  d.setDate(day);
 
-  // remove old highlight
-  document.querySelectorAll(".day").forEach(d => d.classList.remove("selected"));
+  const iso = d.toISOString().split("T")[0];
 
-  element.classList.add("selected");
-  selectedDay = day;
+  loadData(iso);
+}
 
+// =======================
+// 🔁 RELOAD
+// =======================
+function reloadAll() {
   loadData();
 }
 
-// 📊 LOAD DATA
-async function loadData() {
-
-  if (!selectedDay) return;
-
-  const machine = machineSelect.value;
-
-  const date = new Date();
-  date.setDate(selectedDay);
-
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth()+1).padStart(2,'0');
-  const dd = String(selectedDay).padStart(2,'0');
-
-  const fullDate = `${yyyy}-${mm}-${dd}`;
-
-  try {
-    const res = await fetch(`/api/day-shift-stats?machine=${machine}&date=${fullDate}`);
-    const data = await res.json();
-
-    render(data);
-
-  } catch (err) {
-    console.log(err);
-    result.innerHTML = "Greška!";
-  }
-}
-
-// 📊 FORMAT TIME
-function format(sec){
-  let h = Math.floor(sec/3600);
-  let m = Math.floor((sec%3600)/60);
-  return `${h}h ${m}m`;
-}
-
-// 📊 RENDER
-function render(data){
-
-  result.innerHTML = "";
-
-  ["I","II","III"].forEach(shift => {
-
-    const s = data[shift];
-
-    const div = document.createElement("div");
-    div.className = "box";
-
-    div.innerHTML = `
-      <h3>Smjena ${shift}</h3>
-      RAD: ${format(s.RAD)}<br>
-      PRIPREMA: ${format(s.PRIPREMA)}<br>
-      ZASTOJ: ${format(s.ZASTOJ)}<br>
-      NEAKTIVNA: ${format(s.NEAKTIVNA)}<br>
-      <b>Efikasnost: ${s.efficiency}%</b>
-    `;
-
-    result.appendChild(div);
-  });
-}
-
+// =======================
 // INIT
-generateCalendar();
+// =======================
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("date").value = today;
+selectedDay = new Date().getDate();
 
+loadData();
 </script>
 
 </body>
