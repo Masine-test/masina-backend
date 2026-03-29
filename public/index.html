@@ -30,6 +30,17 @@
     .zastoj { color: red; }
     .priprema { color: orange; }
 
+    .stats {
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.eff {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
     /* 🔥 BLINK za OFFLINE */
     .blink {
       animation: blink 1s infinite;
@@ -51,6 +62,7 @@
 
 </div>
 <script>
+const STATS_API = "/api/shift-stats";
 const API = "/api/machines/all";
 
 let startTimes = {};
@@ -115,10 +127,19 @@ async function loadMachines() {
   const res = await fetch(API);
   const data = await res.json();
 
+  const statsRes = await fetch(STATS_API);
+  const stats = await statsRes.json();
+
   const container = document.getElementById("machines");
 
   data.forEach(m => {
 
+    const s = stats[m.machine_id] || {};
+
+const rad = formatTime(s.RAD || 0);
+const priprema = formatTime(s.PRIPREMA || 0);
+const zastoj = formatTime(s.ZASTOJ || 0);
+const eff = s.efficiency || 0;
     let card = document.getElementById("card_" + m.machine_id);
 
     // 🆕 ako ne postoji → kreiraj
@@ -136,6 +157,17 @@ async function loadMachines() {
           <div style="font-size:12px; color:gray;" id="st_${m.machine_id}"></div>
 
           <div class="timer" id="t_${m.machine_id}"></div>
+          //Prikaz efikasnosti
+          <div style="font-size:13px; margin-top:10px; text-align:left;">
+  🟢 RAD: ${rad}<br>
+  🟠 PRIPREMA: ${priprema}<br>
+  🔴 ZASTOJ: ${zastoj}
+</div>
+
+<div style="margin-top:10px; font-weight:bold;">
+  ⚙️ Efikasnost: ${eff}%
+</div>
+          
         </div>
       `;
 
