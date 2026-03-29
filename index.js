@@ -175,15 +175,23 @@ app.get("/api/shift-stats", async (req, res) => {
       data[r.machine_id][r.state] = Number(r.total);
     });
 
-    for (let m in data) {
-      const rad = data[m].RAD || 0;
-      const max = shiftDurationHours * 3600;
+   for (let m in data) {
+  let rad = data[m].RAD || 0;
 
-      let efficiency = Math.round((rad / max) * 100);
-      if (efficiency > 100) efficiency = 100;
+  // 🆕 REALTIME DODATAK
+  if (lastState[m] === "RAD" && lastChangeTime[m]) {
+    const extra = Math.floor((new Date() - lastChangeTime[m]) / 1000);
+    rad += extra;
+  }
 
-      data[m].efficiency = efficiency;
-    }
+  const max = shiftDurationHours * 3600;
+
+  let efficiency = Math.round((rad / max) * 100);
+  if (efficiency > 100) efficiency = 100;
+
+  data[m].RAD = rad; // 🔥 update RAD da UI vidi pravi broj
+  data[m].efficiency = efficiency;
+}
 
     res.json(data);
 
