@@ -12,14 +12,41 @@
       margin-top: 15px;
     }
 
+    /* ✅ PRAVI KALENDAR GRID */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+    }
+
     .calendar-day {
       cursor: pointer;
       transition: 0.2s;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 12px;
+      text-align: center;
       min-height: 90px;
     }
 
     .calendar-day:hover {
       transform: scale(1.05);
+    }
+
+    .day-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .small {
+      font-size: 11px;
+    }
+
+    .weekday {
+      text-align: center;
+      font-weight: bold;
+      font-size: 12px;
+      color: gray;
     }
   </style>
 </head>
@@ -64,9 +91,21 @@
 
   </div>
 
-  <!-- KALENDAR -->
+  <!-- 📅 KALENDAR -->
   <h3>📅 Kalendar</h3>
-  <div class="row row-cols-7 g-2" id="calendar"></div>
+
+  <!-- dani u sedmici -->
+  <div class="calendar-grid mb-2">
+    <div class="weekday">Pon</div>
+    <div class="weekday">Uto</div>
+    <div class="weekday">Sri</div>
+    <div class="weekday">Čet</div>
+    <div class="weekday">Pet</div>
+    <div class="weekday">Sub</div>
+    <div class="weekday">Ned</div>
+  </div>
+
+  <div id="calendar" class="calendar-grid"></div>
 
   <!-- rezultat -->
   <div id="result"></div>
@@ -79,9 +118,12 @@ const MONTH_API = "/api/month-stats";
 
 // format vremena
 function formatTime(sec) {
+  sec = Math.floor(sec || 0);
+
   let h = Math.floor(sec/3600);
   let m = Math.floor((sec%3600)/60);
   let s = sec%60;
+
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
@@ -125,7 +167,7 @@ async function loadData(dateOverride = null) {
 }
 
 // =======================
-// 📅 MJESEC
+// 📅 MJESEC (SEDMIČNI GRID)
 // =======================
 async function loadMonth() {
   const machine = document.getElementById("machine").value;
@@ -145,6 +187,15 @@ async function loadMonth() {
 
   const daysInMonth = new Date(year, month, 0).getDate();
 
+  // 🔥 OFFSET (da mjesec počne od ponedjeljka)
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const offset = firstDay === 0 ? 6 : firstDay - 1;
+
+  for (let i = 0; i < offset; i++) {
+    const empty = document.createElement("div");
+    container.appendChild(empty);
+  }
+
   for (let i = 1; i <= daysInMonth; i++) {
 
     const day = data[i.toString()] || { RAD: 0, eff: 0 };
@@ -155,25 +206,16 @@ async function loadMonth() {
       "#f8d7da";
 
     const div = document.createElement("div");
-    div.className = "col";
+    div.className = "calendar-day";
+    div.style.background = color;
 
     div.innerHTML = `
-      <div class="card calendar-day text-center p-2"
-           style="background:${color}"
-           onclick="selectDay(${i})">
-
-        <strong>${i}</strong>
-
-        <div style="font-size:12px">
-          ${formatTime(day.RAD)}
-        </div>
-
-        <div style="font-size:12px; font-weight:bold;">
-          ${day.eff || 0}%
-        </div>
-
-      </div>
+      <div class="day-title">${i}</div>
+      <div class="small">🟢 ${formatTime(day.RAD)}</div>
+      <div class="small"><b>${day.eff || 0}%</b></div>
     `;
+
+    div.onclick = () => selectDay(i);
 
     container.appendChild(div);
   }
