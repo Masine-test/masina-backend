@@ -1,254 +1,168 @@
 <!DOCTYPE html>
-<html>
+<html lang="bs">
 <head>
-  <meta charset="utf-8">
-  <title>Historija</title>
+<meta charset="UTF-8">
+<title>Historija</title>
 
-  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+<style>
+body {
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+  text-align: center;
+}
 
-  <style>
-    .shift-card {
-      padding: 15px;
-      margin-top: 15px;
-    }
+/* 📅 KALENDAR */
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  max-width: 400px;
+  margin: 20px auto;
+}
 
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 10px;
-    }
+.day {
+  padding: 10px;
+  background: #1e293b;
+  cursor: pointer;
+  border-radius: 6px;
+}
 
-    .calendar-day {
-      cursor: pointer;
-      border-radius: 10px;
-      padding: 8px;
-      font-size: 12px;
-      text-align: center;
-      min-height: 90px;
-      transition: 0.2s;
-    }
+.day:hover {
+  background: #334155;
+}
 
-    .calendar-day:hover {
-      transform: scale(1.05);
-    }
+.day.selected {
+  background: #22c55e;
+  color: black;
+  font-weight: bold;
+}
 
-    .selected {
-      border: 2px solid #206bc4;
-    }
+/* 📊 BOX */
+.box {
+  background: #1e293b;
+  padding: 15px;
+  margin: 10px auto;
+  width: 300px;
+  border-radius: 10px;
+}
 
-    .weekday {
-      text-align: center;
-      font-weight: bold;
-      font-size: 12px;
-      color: gray;
-    }
-
-    .info-bar {
-      margin-top: 15px;
-      padding: 10px;
-      background: #f1f3f5;
-      border-radius: 10px;
-      text-align: center;
-      font-weight: bold;
-    }
-  </style>
+</style>
 </head>
 
-<body class="layout-fluid">
+<body>
 
-<div class="container-xl mt-4">
+<h2>📅 Historija po danima</h2>
 
-  <div class="mb-3">
-    <a href="/" class="btn btn-secondary">⬅️ Početna</a>
-  </div>
+<select id="machine">
+  <option value="masina_01">Masina 01</option>
+  <option value="masina_02">Masina 02</option>
+  <option value="masina_03">Masina 03</option>
+  <option value="masina_04">Masina 04</option>
+  <option value="masina_05">Masina 05</option>
+</select>
 
-  <h1>📅 Historija mašine</h1>
+<div class="calendar" id="calendar"></div>
 
-  <!-- kontrola -->
-  <div class="row mb-3">
-    <div class="col-md-4">
-      <select id="machine" class="form-select">
-        <option value="masina_01">masina_01</option>
-        <option value="masina_02">masina_02</option>
-        <option value="masina_03">masina_03</option>
-        <option value="masina_04">masina_04</option>
-        <option value="masina_05">masina_05</option>
-        <option value="masina_06">masina_06</option>
-        <option value="masina_07">masina_07</option>
-        <option value="masina_08">masina_08</option>
-        <option value="masina_09">masina_09</option>
-        <option value="masina_10">masina_10</option>
-      </select>
-    </div>
-
-    <div class="col-md-4">
-      <input type="date" id="date" class="form-control">
-    </div>
-
-    <div class="col-md-4">
-      <button class="btn btn-primary w-100" onclick="loadData()">
-        🔍 Prikaži
-      </button>
-    </div>
-  </div>
-
-  <!-- 📅 KALENDAR -->
-  <h3>📅 Kalendar</h3>
-
-  <div class="calendar-grid mb-2">
-    <div class="weekday">Pon</div>
-    <div class="weekday">Uto</div>
-    <div class="weekday">Sri</div>
-    <div class="weekday">Čet</div>
-    <div class="weekday">Pet</div>
-    <div class="weekday">Sub</div>
-    <div class="weekday">Ned</div>
-  </div>
-
-  <div id="calendar" class="calendar-grid"></div>
-
-  <!-- INFO -->
-  <div id="info" class="info-bar"></div>
-
-  <!-- rezultat -->
-  <div id="result"></div>
-
-</div>
+<div id="result"></div>
 
 <script>
-const DAY_API = "/api/day-shift-stats";
-const MONTH_API = "/api/month-stats";
+const calendar = document.getElementById("calendar");
+const result = document.getElementById("result");
+const machineSelect = document.getElementById("machine");
 
 let selectedDay = null;
 
-// format vremena
-function formatTime(sec) {
-  sec = Math.floor(sec || 0);
+// 📅 GENERATE DAYS
+function generateCalendar() {
+  calendar.innerHTML = "";
 
+  for (let i = 1; i <= 31; i++) {
+    const div = document.createElement("div");
+    div.className = "day";
+    div.innerText = i;
+
+    div.onclick = () => selectDay(i, div);
+
+    calendar.appendChild(div);
+  }
+}
+
+// 📅 SELECT DAY
+function selectDay(day, element) {
+
+  // remove old highlight
+  document.querySelectorAll(".day").forEach(d => d.classList.remove("selected"));
+
+  element.classList.add("selected");
+  selectedDay = day;
+
+  loadData();
+}
+
+// 📊 LOAD DATA
+async function loadData() {
+
+  if (!selectedDay) return;
+
+  const machine = machineSelect.value;
+
+  const date = new Date();
+  date.setDate(selectedDay);
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth()+1).padStart(2,'0');
+  const dd = String(selectedDay).padStart(2,'0');
+
+  const fullDate = `${yyyy}-${mm}-${dd}`;
+
+  try {
+    const res = await fetch(`/api/day-shift-stats?machine=${machine}&date=${fullDate}`);
+    const data = await res.json();
+
+    render(data);
+
+  } catch (err) {
+    console.log(err);
+    result.innerHTML = "Greška!";
+  }
+}
+
+// 📊 FORMAT TIME
+function format(sec){
   let h = Math.floor(sec/3600);
   let m = Math.floor((sec%3600)/60);
-  let s = sec%60;
-
-  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return `${h}h ${m}m`;
 }
 
-// =======================
-// 📊 DAN
-// =======================
-async function loadData(dateOverride = null) {
-  const machine = document.getElementById("machine").value;
-  const date = dateOverride || document.getElementById("date").value;
+// 📊 RENDER
+function render(data){
 
-  if (!date) return alert("Izaberi datum");
+  result.innerHTML = "";
 
-  document.getElementById("date").value = date;
-  selectedDay = new Date(date).getDate();
+  ["I","II","III"].forEach(shift => {
 
-  const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
-  const data = await res.json();
-
-  // INFO BAR
-  document.getElementById("info").innerHTML =
-    `🏭 ${machine} | 📅 ${date}`;
-
-  const div = document.getElementById("result");
-  div.innerHTML = "";
-
-  for (let s in data) {
-    const d = data[s];
-
-    div.innerHTML += `
-      <div class="card shift-card">
-        <h3>${s} smjena</h3>
-
-        <div>🟢 RAD: ${formatTime(d.RAD)}</div>
-        <div>🟠 PRIPREMA: ${formatTime(d.PRIPREMA)}</div>
-        <div>🔴 ZASTOJ: ${formatTime(d.ZASTOJ)}</div>
-        <div>⚫ NEAKTIVNA: ${formatTime(d.NEAKTIVNA)}</div>
-
-        <div style="margin-top:10px; font-weight:bold;">
-          ⚙️ Efikasnost: ${d.efficiency}%
-        </div>
-      </div>
-    `;
-  }
-
-  loadMonth();
-}
-
-// =======================
-// 📅 MJESEC
-// =======================
-async function loadMonth() {
-  const machine = document.getElementById("machine").value;
-  const date = document.getElementById("date").value;
-
-  if (!date) return;
-
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-
-  const res = await fetch(`${MONTH_API}?machine=${machine}&year=${year}&month=${month}`);
-  const data = await res.json();
-
-  const container = document.getElementById("calendar");
-  container.innerHTML = "";
-
-  const daysInMonth = new Date(year, month, 0).getDate();
-
-  const firstDay = new Date(year, month - 1, 1).getDay();
-  const offset = firstDay === 0 ? 6 : firstDay - 1;
-
-  for (let i = 0; i < offset; i++) {
-    container.appendChild(document.createElement("div"));
-  }
-
-  for (let i = 1; i <= daysInMonth; i++) {
-
-    const day = data[i] || { RAD: 0, eff: 0 };
-
-    const color =
-      day.eff > 70 ? "#d4edda" :
-      day.eff > 40 ? "#fff3cd" :
-      "#f8d7da";
+    const s = data[shift];
 
     const div = document.createElement("div");
-    div.className = "calendar-day";
-    if (i === selectedDay) div.classList.add("selected");
-
-    div.style.background = color;
+    div.className = "box";
 
     div.innerHTML = `
-      <div><b>${i}</b></div>
-      <div>🟢 ${formatTime(day.RAD)}</div>
-      <div><b>${day.eff}%</b></div>
+      <h3>Smjena ${shift}</h3>
+      RAD: ${format(s.RAD)}<br>
+      PRIPREMA: ${format(s.PRIPREMA)}<br>
+      ZASTOJ: ${format(s.ZASTOJ)}<br>
+      NEAKTIVNA: ${format(s.NEAKTIVNA)}<br>
+      <b>Efikasnost: ${s.efficiency}%</b>
     `;
 
-    div.onclick = () => selectDay(i);
-
-    container.appendChild(div);
-  }
+    result.appendChild(div);
+  });
 }
 
-// =======================
-// 🖱️ KLIK
-// =======================
-function selectDay(day) {
-  const d = new Date(document.getElementById("date").value);
-  d.setDate(day);
-
-  const iso = d.toISOString().split("T")[0];
-  loadData(iso);
-}
-
-// =======================
 // INIT
-// =======================
-document.getElementById("date").value =
-  new Date().toISOString().split("T")[0];
+generateCalendar();
 
-loadMonth();
 </script>
 
 </body>
