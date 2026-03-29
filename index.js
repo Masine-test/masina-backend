@@ -155,10 +155,15 @@ app.get("/api/shift-stats", async (req, res) => {
       const sec = Math.floor((end - start) / 1000);
 
       if (!data[ev.machine_id]) {
-        data[ev.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
-      }
+  data[ev.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
+}
 
-      data[ev.machine_id][ev.state] += sec;
+// 🔥 AKO STATE NE POSTOJI → KREIRAJ
+if (!data[ev.machine_id][ev.state]) {
+  data[ev.machine_id][ev.state] = 0;
+}
+
+data[ev.machine_id][ev.state] += sec;
     });
 
     // 🔥 REALTIME
