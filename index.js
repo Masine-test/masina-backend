@@ -197,14 +197,25 @@ app.get("/api/day-shift-stats", async (req, res) => {
       }
     });
 
-    const durations = { I:9*3600, II:8*3600, III:7*3600 };
+   const durations = { I:9*3600, II:8*3600, III:7*3600 };
 
-    for(let s in shifts){
-      const rad = shifts[s].RAD;
-      let eff = Math.round((rad/durations[s])*100);
-      if (eff > 100) eff = 100;
-      shifts[s].efficiency = eff;
-    }
+for (let s in shifts) {
+  const rad = shifts[s].RAD || 0;
+  const priprema = shifts[s].PRIPREMA || 0;
+  const zastoj = shifts[s].ZASTOJ || 0;
+
+  const used = rad + priprema + zastoj;
+
+  // 🆕 NEAKTIVNA
+  shifts[s].NEAKTIVNA = durations[s] - used;
+  if (shifts[s].NEAKTIVNA < 0) shifts[s].NEAKTIVNA = 0;
+
+  // ⚙️ efikasnost (samo RAD)
+  let eff = Math.round((rad / durations[s]) * 100);
+  if (eff > 100) eff = 100;
+
+  shifts[s].efficiency = eff;
+}
 
     res.json(shifts);
 
