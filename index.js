@@ -288,6 +288,53 @@ app.get("/api/day-shift-stats", async (req, res) => {
 });
 
 // =======================
+// 📅 MJESEC (KALENDAR)
+// =======================
+app.get("/api/month-stats", async (req, res) => {
+  try {
+    const { machine, year, month } = req.query;
+
+    if (!machine || !year || !month) {
+      return res.status(400).send("Missing params");
+    }
+
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 1);
+
+    const result = await pool.query(`
+      SELECT created_at, state, duration
+      FROM events
+      WHERE machine_id = $1
+      AND created_at < $3
+      AND (created_at + (duration || ' seconds')::interval) > $2
+    `, [machine, start, end]);
+
+    const days = {};
+
+    result.rows.forEach(ev => {
+      const d = new Date(ev.created_at).getDate();
+
+      if (!days[d]) days[d] = { RAD: 0 };
+
+      if (ev.state === "RAD") {
+        days[d].RAD += ev.duration;
+      }
+    });
+
+    // efikasnost po danu
+    for (let d in days) {
+      days[d].eff = Math.round((days[d].RAD / (24 * 3600)) * 100);
+    }
+
+    res.json(days);
+
+  } catch (e) {
+    console.log(e);
+    res.status(500).send("error");
+  }
+});
+
+// =======================
 // 🚀 SERVER
 // =======================
 const PORT = process.env.PORT || 3000;
