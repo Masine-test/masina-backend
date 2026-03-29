@@ -39,6 +39,7 @@ app.post("/api/data", async (req, res) => {
 
   const now = new Date();
 
+  // ONLINE povratak
   if (offlineTriggered[machineId]) {
     console.log(`✅ ${machineId} ONLINE opet`);
   }
@@ -47,16 +48,19 @@ app.post("/api/data", async (req, res) => {
   offlineTriggered[machineId] = false;
 
   try {
+    // prvi put
     if (!lastState[machineId]) {
       lastState[machineId] = state;
       lastChangeTime[machineId] = now;
       return res.json({ status: "init" });
     }
 
+    // nema promjene
     if (state === lastState[machineId]) {
       return res.json({ status: "no change" });
     }
 
+    // promjena
     const duration = Math.floor((now - lastChangeTime[machineId]) / 1000);
 
     await pool.query(
@@ -64,10 +68,12 @@ app.post("/api/data", async (req, res) => {
       [machineId, lastState[machineId], duration]
     );
 
+    // ALARM
     if (lastState[machineId] === "ZASTOJ" && duration > 60) {
       console.log(`⚠️ ALARM: ${machineId} dug zastoj (${duration}s)`);
     }
 
+    // update
     lastState[machineId] = state;
     lastChangeTime[machineId] = now;
 
@@ -80,26 +86,41 @@ app.post("/api/data", async (req, res) => {
 });
 
 // =======================
-// 🏭 SVE MAŠINE
+// 🏭 SVE MAŠINE (FIXED)
 // =======================
 app.get("/api/machines/all", (req, res) => {
   const now = new Date();
 
   const list = machines.map(id => {
+
+    // nikad nije bila online
     if (!lastSeen[id]) {
-      return { machine_id: id, state: "OFFLINE", status: "NEVER" };
+      return {
+        machine_id: id,
+        state: "OFFLINE",
+        status: "NEVER",
+        created_at: null
+      };
     }
 
     const diff = (now - lastSeen[id]) / 1000;
 
+    // offline
     if (diff > 30) {
-      return { machine_id: id, state: "OFFLINE", status: "OFFLINE" };
+      return {
+        machine_id: id,
+        state: "OFFLINE",
+        status: "OFFLINE",
+        created_at: lastSeen[id]
+      };
     }
 
+    // online
     return {
       machine_id: id,
-      state: lastState[id],
-      status: "ONLINE"
+      state: lastState[id] || "UNKNOWN",
+      status: "ONLINE",
+      created_at: lastChangeTime[id]
     };
   });
 
@@ -180,7 +201,9 @@ app.get("/api/day-shift-stats", async (req, res) => {
 
     for(let s in shifts){
       const rad = shifts[s].RAD;
-      shifts[s].efficiency = Math.round((rad/durations[s])*100);
+      let eff = Math.round((rad/durations[s])*100);
+      if (eff > 100) eff = 100;
+      shifts[s].efficiency = eff;
     }
 
     res.json(shifts);
@@ -192,11 +215,15 @@ app.get("/api/day-shift-stats", async (req, res) => {
 });
 
 // =======================
-// 📅 MJESEC
+// 📅 MJESEC (FIXED)
 // =======================
 app.get("/api/month-stats", async (req, res) => {
   try {
     const { machine, year, month } = req.query;
+
+    if (!machine || !year || !month) {
+      return res.status(400).send("Missing params");
+    }
 
     const start = new Date(year, month-1, 1);
     const end = new Date(year, month, 1);
@@ -214,15 +241,16 @@ app.get("/api/month-stats", async (req, res) => {
     result.rows.forEach(ev=>{
       const d = new Date(ev.created_at).getDate();
 
-      if(!days[d]) days[d]={RAD:0};
+      if(!days[d]) days[d]={ RAD:0 };
 
       if(ev.state==="RAD"){
         days[d].RAD += ev.duration;
       }
     });
 
+    // efikasnost po danu (RAD / 24h)
     for(let d in days){
-      days[d].eff = Math.round(days[d].RAD/(24*3600)*100);
+      days[d].eff = Math.round((days[d].RAD / (24*3600)) * 100);
     }
 
     res.json(days);
@@ -232,6 +260,31 @@ app.get("/api/month-stats", async (req, res) => {
     res.status(500).send("error");
   }
 });
+
+// =======================
+// 🚨 OFFLINE DETEKCIJA
+// =======================
+setInterval(() => {
+  const now = new Date();
+
+  for (let machineId of machines) {
+
+    if (!lastSeen[machineId]) {
+      if (!offlineTriggered[machineId]) {
+        offlineTriggered[machineId] = true;
+        console.log(`🚨 ${machineId} OFFLINE (nikad nije online)`);
+      }
+      continue;
+    }
+
+    const diff = (now - lastSeen[machineId]) / 1000;
+
+    if (diff > 30 && !offlineTriggered[machineId]) {
+      offlineTriggered[machineId] = true;
+      console.log(`🚨 ${machineId} OFFLINE (${Math.floor(diff)}s)`);
+    }
+  }
+}, 10000);
 
 // =======================
 // 🚀 SERVER
