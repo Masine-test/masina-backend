@@ -39,10 +39,6 @@ app.post("/api/data", async (req, res) => {
 
   const now = new Date();
 
-  if (offlineTriggered[machineId]) {
-    console.log(`✅ ${machineId} ONLINE opet`);
-  }
-
   lastSeen[machineId] = now;
   offlineTriggered[machineId] = false;
 
@@ -84,30 +80,20 @@ app.get("/api/machines/all", (req, res) => {
   const list = machines.map(id => {
 
     if (!lastSeen[id]) {
-      return {
-        machine_id: id,
-        state: "OFFLINE",
-        status: "NEVER",
-        created_at: null
-      };
+      return { machine_id: id, state: "OFFLINE", status: "NEVER" };
     }
 
     const diff = (now - lastSeen[id]) / 1000;
 
     if (diff > 30) {
-      return {
-        machine_id: id,
-        state: "OFFLINE",
-        status: "OFFLINE",
-        created_at: lastSeen[id]
-      };
+      return { machine_id: id, state: "OFFLINE", status: "OFFLINE" };
     }
 
     return {
       machine_id: id,
-      state: lastState[id] || "UNKNOWN",
+      state: lastState[id],
       status: "ONLINE",
-      created_at: lastChangeTime[id]
+      created_at: lastChangeTime[id] // 🔥 BITNO ZA TIMER
     };
   });
 
@@ -122,7 +108,7 @@ app.get("/api/heartbeat", (req, res) => {
 });
 
 // =======================
-// 📊 SHIFT STATS (FIXED SAMO OVO)
+// 🆕 SHIFT STATS (FIX)
 // =======================
 app.get("/api/shift-stats", async (req, res) => {
   try {
@@ -130,73 +116,63 @@ app.get("/api/shift-stats", async (req, res) => {
     const hour = now.getHours();
 
     let shiftStart = new Date(now);
-    let shiftDurationHours = 8;
+    let shiftSeconds = 8 * 3600;
 
     if (hour >= 7 && hour < 16) {
-      shiftStart.setHours(7, 0, 0, 0);
-      shiftDurationHours = 9;
+      shiftStart.setHours(7,0,0,0);
+      shiftSeconds = 9 * 3600;
     } else if (hour >= 16) {
-      shiftStart.setHours(16, 0, 0, 0);
-      shiftDurationHours = 8;
+      shiftStart.setHours(16,0,0,0);
+      shiftSeconds = 8 * 3600;
     } else {
-      shiftStart.setHours(0, 0, 0, 0);
-      shiftDurationHours = 7;
+      shiftStart.setHours(0,0,0,0);
+      shiftSeconds = 7 * 3600;
     }
 
-    // 🔥 FIXED QUERY (uzima samo dio koji ulazi u smjenu)
     const result = await pool.query(`
-      SELECT machine_id, state, duration, created_at
+      SELECT machine_id, state, SUM(duration) as total
       FROM events
-      WHERE created_at < NOW()
-      AND (created_at + (duration || ' seconds')::interval) > $1
+      WHERE created_at >= $1
+      GROUP BY machine_id, state
     `, [shiftStart]);
 
     const data = {};
 
-    result.rows.forEach(ev => {
-
-      if (!data[ev.machine_id]) {
-        data[ev.machine_id] = {
-          RAD: 0,
-          PRIPREMA: 0,
-          ZASTOJ: 0
-        };
+    result.rows.forEach(r => {
+      if (!data[r.machine_id]) {
+        data[r.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
       }
 
-      let start = new Date(ev.created_at);
-      let end = new Date(start.getTime() + ev.duration * 1000);
-
-      if (start < shiftStart) start = shiftStart;
-
-      const sec = Math.floor((end - start) / 1000);
-
-      if (!data[ev.machine_id][ev.state]) {
-        data[ev.machine_id][ev.state] = 0;
-      }
-
-      data[ev.machine_id][ev.state] += sec;
+      data[r.machine_id][r.state] = Number(r.total);
     });
 
-    // 🔥 REALTIME + EFIKASNOST
-    for (let m in data) {
-      let rad = data[m].RAD || 0;
+    // 🔥 REALTIME DODATAK + FIX
+    machines.forEach(m => {
 
-      if (lastState[m] === "RAD" && lastChangeTime[m]) {
-        const extra = Math.floor((new Date() - lastChangeTime[m]) / 1000);
-        rad += extra;
+      if (!data[m]) data[m] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
+
+      if (lastState[m] && lastChangeTime[m]) {
+
+        const extra = Math.floor((now - lastChangeTime[m]) / 1000);
+
+        if (lastState[m] === "RAD") {
+          data[m].RAD += extra;
+        }
+
+        if (lastState[m] === "PRIPREMA") {
+          data[m].PRIPREMA += extra;
+        }
+
+        if (lastState[m] === "ZASTOJ") {
+          data[m].ZASTOJ += extra;
+        }
       }
 
-      const max = shiftDurationHours * 3600;
-
-      if (rad > max) rad = max;
-
-      data[m].RAD = rad;
-
-      let eff = Math.round((rad / max) * 100);
+      let eff = Math.round((data[m].RAD / shiftSeconds) * 100);
       if (eff > 100) eff = 100;
 
       data[m].efficiency = eff;
-    }
+    });
 
     res.json(data);
 
