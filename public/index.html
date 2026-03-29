@@ -110,7 +110,9 @@ async function loadMachines() {
         ${
           m.status === "NEVER"
             ? `<div class="timer">N/A</div>`
-            : `<div class="timer" id="t_${m.machine_id}"></div>`
+            : `<div class="timer" id="t_${m.machine_id}">
+  Trajanje: 0s
+</div>`
         }
       </div>
     `;
