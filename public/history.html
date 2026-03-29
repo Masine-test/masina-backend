@@ -11,6 +11,16 @@
       padding: 15px;
       margin-top: 15px;
     }
+
+    .calendar-day {
+      cursor: pointer;
+      transition: 0.2s;
+      min-height: 90px;
+    }
+
+    .calendar-day:hover {
+      transform: scale(1.05);
+    }
   </style>
 </head>
 
@@ -18,12 +28,10 @@
 
 <div class="container-xl mt-4">
 
- <div class="mb-3">
-    <a href="/" class="btn btn-secondary">
-      ⬅️ Početna
-    </a>
+  <div class="mb-3">
+    <a href="/" class="btn btn-secondary">⬅️ Početna</a>
   </div>
-  
+
   <h1>📅 Historija mašine</h1>
 
   <!-- kontrola -->
@@ -56,34 +64,39 @@
 
   </div>
 
-<!-- 🆕 KALENDAR -->
-<h3 class="mt-4">📅 Kalendar</h3>  
-<div id="calendar" class="row mt-4"></div>
-  
+  <!-- KALENDAR -->
+  <h3>📅 Kalendar</h3>
+  <div class="row row-cols-7 g-2" id="calendar"></div>
+
   <!-- rezultat -->
   <div id="result"></div>
 
 </div>
 
 <script>
-const API = "/api/day-shift-stats";
+const DAY_API = "/api/day-shift-stats";
+const MONTH_API = "/api/month-stats";
 
 // format vremena
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-
+function formatTime(sec) {
+  let h = Math.floor(sec/3600);
+  let m = Math.floor((sec%3600)/60);
+  let s = sec%60;
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-async function loadData() {
+// =======================
+// 📊 DAN (SMJENE)
+// =======================
+async function loadData(dateOverride = null) {
   const machine = document.getElementById("machine").value;
-  const date = document.getElementById("date").value;
+  const date = dateOverride || document.getElementById("date").value;
 
   if (!date) return alert("Izaberi datum");
 
-  const res = await fetch(`${API}?date=${date}&machine=${machine}`);
+  document.getElementById("date").value = date;
+
+  const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
   const data = await res.json();
 
   const div = document.getElementById("result");
@@ -107,11 +120,84 @@ async function loadData() {
       </div>
     `;
   }
+
+  loadMonth();
 }
 
-// default danas
+// =======================
+// 📅 MJESEC
+// =======================
+async function loadMonth() {
+  const machine = document.getElementById("machine").value;
+  const date = document.getElementById("date").value;
+
+  if (!date) return;
+
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+
+  const res = await fetch(`${MONTH_API}?machine=${machine}&year=${year}&month=${month}`);
+  const data = await res.json();
+
+  const container = document.getElementById("calendar");
+  container.innerHTML = "";
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  for (let i = 1; i <= daysInMonth; i++) {
+
+    const day = data[i.toString()] || { RAD: 0, eff: 0 };
+
+    const color =
+      day.eff > 70 ? "#d4edda" :
+      day.eff > 40 ? "#fff3cd" :
+      "#f8d7da";
+
+    const div = document.createElement("div");
+    div.className = "col";
+
+    div.innerHTML = `
+      <div class="card calendar-day text-center p-2"
+           style="background:${color}"
+           onclick="selectDay(${i})">
+
+        <strong>${i}</strong>
+
+        <div style="font-size:12px">
+          ${formatTime(day.RAD)}
+        </div>
+
+        <div style="font-size:12px; font-weight:bold;">
+          ${day.eff || 0}%
+        </div>
+
+      </div>
+    `;
+
+    container.appendChild(div);
+  }
+}
+
+// =======================
+// 🖱️ KLIK NA DAN
+// =======================
+function selectDay(day) {
+  const d = new Date(document.getElementById("date").value);
+  d.setDate(day);
+
+  const iso = d.toISOString().split("T")[0];
+
+  loadData(iso);
+}
+
+// =======================
+// INIT
+// =======================
 document.getElementById("date").value =
   new Date().toISOString().split("T")[0];
+
+loadMonth();
 </script>
 
 </body>
