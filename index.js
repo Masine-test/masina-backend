@@ -171,26 +171,26 @@ data[ev.machine_id][ev.state] += sec;
 
       if (!data[m]) data[m] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
 
-      if (lastState[m] && lastChangeTime[m]) {
+
+if (lastState[m] && lastChangeTime[m]) {
 
   let start = new Date(lastChangeTime[m]);
 
-  // ❌ AKO JE PROMJENA PRIJE SMJENE → IGNORIŠI
   if (start < shiftStart) {
     start = shiftStart;
   }
 
-  // ❌ AKO JE PROMJENA POSLIJE SADA → preskoči
-  if (start > now) return;
+  if (start <= now) {
+    const extra = Math.floor((now - start) / 1000);
 
-  const extra = Math.floor((now - start) / 1000);
+    if (!data[m][lastState[m]]) {
+      data[m][lastState[m]] = 0;
+    }
 
-  if (!data[m][lastState[m]]) {
-    data[m][lastState[m]] = 0;
+    data[m][lastState[m]] += extra;
   }
-
-  data[m][lastState[m]] += extra;
 }
+      
 
         if (!data[m][lastState[m]]) {
   data[m][lastState[m]] = 0;
