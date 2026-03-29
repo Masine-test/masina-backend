@@ -135,8 +135,16 @@ async function loadMachines() {
   const res = await fetch(API);
   const data = await res.json();
 
+  // const statsRes = await fetch(STATS_API);
+  // const stats = await statsRes.json();
+  let stats = {};
+
+try {
   const statsRes = await fetch(STATS_API);
-  const stats = await statsRes.json();
+  stats = await statsRes.json();
+} catch (e) {
+  console.log("Stats API error:", e);
+}
 
   const container = document.getElementById("machines");
 
