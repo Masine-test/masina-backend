@@ -20,25 +20,20 @@
 
     .calendar-day {
       cursor: pointer;
-      transition: 0.2s;
       border-radius: 10px;
       padding: 8px;
       font-size: 12px;
       text-align: center;
       min-height: 90px;
+      transition: 0.2s;
     }
 
     .calendar-day:hover {
       transform: scale(1.05);
     }
 
-    .day-title {
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-
-    .small {
-      font-size: 11px;
+    .selected {
+      border: 2px solid #206bc4;
     }
 
     .weekday {
@@ -48,19 +43,13 @@
       color: gray;
     }
 
-    .selection-box {
-      margin-top: 20px;
-      padding: 12px;
-      border-radius: 10px;
+    .info-bar {
+      margin-top: 15px;
+      padding: 10px;
       background: #f1f3f5;
+      border-radius: 10px;
       text-align: center;
       font-weight: bold;
-    }
-
-    /* 🔥 SELECTED DAY */
-    .selected-day {
-      border: 2px solid #0d6efd;
-      box-shadow: 0 0 10px rgba(13,110,253,0.5);
     }
   </style>
 </head>
@@ -77,7 +66,6 @@
 
   <!-- kontrola -->
   <div class="row mb-3">
-
     <div class="col-md-4">
       <select id="machine" class="form-select">
         <option value="masina_01">masina_01</option>
@@ -102,7 +90,6 @@
         🔍 Prikaži
       </button>
     </div>
-
   </div>
 
   <!-- 📅 KALENDAR -->
@@ -121,7 +108,7 @@
   <div id="calendar" class="calendar-grid"></div>
 
   <!-- INFO -->
-  <div id="selectionInfo" class="selection-box"></div>
+  <div id="info" class="info-bar"></div>
 
   <!-- rezultat -->
   <div id="result"></div>
@@ -132,7 +119,7 @@
 const DAY_API = "/api/day-shift-stats";
 const MONTH_API = "/api/month-stats";
 
-let selectedDay = new Date().getDate();
+let selectedDay = null;
 
 // format vremena
 function formatTime(sec) {
@@ -155,16 +142,14 @@ async function loadData(dateOverride = null) {
   if (!date) return alert("Izaberi datum");
 
   document.getElementById("date").value = date;
-
-  // 🔥 HEADER
-  const d = new Date(date);
-  const formatted = d.toLocaleDateString();
-
-  document.getElementById("selectionInfo").innerText =
-    `🏭 ${machine} | 📅 ${formatted}`;
+  selectedDay = new Date(date).getDate();
 
   const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
   const data = await res.json();
+
+  // INFO BAR
+  document.getElementById("info").innerHTML =
+    `🏭 ${machine} | 📅 ${date}`;
 
   const div = document.getElementById("result");
   div.innerHTML = "";
@@ -221,7 +206,7 @@ async function loadMonth() {
 
   for (let i = 1; i <= daysInMonth; i++) {
 
-    const day = data[i.toString()] || { RAD: 0, eff: 0 };
+    const day = data[i] || { RAD: 0, eff: 0 };
 
     const color =
       day.eff > 70 ? "#d4edda" :
@@ -230,17 +215,14 @@ async function loadMonth() {
 
     const div = document.createElement("div");
     div.className = "calendar-day";
-
-    if (selectedDay === i) {
-      div.classList.add("selected-day");
-    }
+    if (i === selectedDay) div.classList.add("selected");
 
     div.style.background = color;
 
     div.innerHTML = `
-      <div class="day-title">${i}</div>
-      <div class="small">🟢 ${formatTime(day.RAD)}</div>
-      <div class="small"><b>${day.eff || 0}%</b></div>
+      <div><b>${i}</b></div>
+      <div>🟢 ${formatTime(day.RAD)}</div>
+      <div><b>${day.eff}%</b></div>
     `;
 
     div.onclick = () => selectDay(i);
@@ -253,22 +235,20 @@ async function loadMonth() {
 // 🖱️ KLIK
 // =======================
 function selectDay(day) {
-  selectedDay = day;
-
   const d = new Date(document.getElementById("date").value);
   d.setDate(day);
 
   const iso = d.toISOString().split("T")[0];
-
   loadData(iso);
 }
 
+// =======================
 // INIT
+// =======================
 document.getElementById("date").value =
   new Date().toISOString().split("T")[0];
 
 loadMonth();
-loadData();
 </script>
 
 </body>
