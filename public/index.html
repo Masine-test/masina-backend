@@ -50,16 +50,16 @@
   <div class="row" id="machines"></div>
 
 </div>
-
 <script>
 const API = "/api/machines/all";
 
 let startTimes = {};
+let lastStates = {}; // 🔥 novo
 
 // 🎯 BOJE + STATUS LOGIKA
 function getClass(state, status) {
-  if (status === "OFFLINE") return "zastoj blink"; // 🔴 + blink
-  if (status === "NEVER") return "offline";        // ⚫
+  if (status === "OFFLINE") return "zastoj blink";
+  if (status === "NEVER") return "offline";
 
   if (state === "RAD") return "rad";
   if (state === "ZASTOJ") return "zastoj";
@@ -68,11 +68,10 @@ function getClass(state, status) {
   return "offline";
 }
 
-// 🎯 LABEL ZA PRIKAZ
+// 🎯 LABEL
 function getLabel(state, status) {
   if (status === "OFFLINE") return "OFFLINE";
   if (status === "NEVER") return "NEVER";
-
   return state;
 }
 
@@ -85,9 +84,10 @@ async function loadMachines() {
 
   data.forEach(m => {
 
-    // ⏱️ samo ako postoji vrijeme
-    if (!startTimes[m.machine_id] && m.last_seen) {
-      startTimes[m.machine_id] = new Date(m.last_seen);
+    // 🔥 RESET TIMER NA PROMJENU
+    if (lastStates[m.machine_id] !== (m.state + m.status)) {
+      startTimes[m.machine_id] = new Date(m.last_seen || Date.now());
+      lastStates[m.machine_id] = m.state + m.status;
     }
 
     const div = document.createElement("div");
@@ -129,6 +129,7 @@ setInterval(() => {
 setInterval(loadMachines, 5000);
 window.onload = loadMachines;
 </script>
+
 
 </body>
 </html>
