@@ -67,7 +67,20 @@ function getClass(state, status) {
 
   return "offline";
 }
+// Format vremena
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
 
+  return (
+    String(h).padStart(2, "0") + ":" +
+    String(m).padStart(2, "0") + ":" +
+    String(s).padStart(2, "0")
+  );
+}
+
+  
 // 🎯 LABEL
 function getLabel(state, status) {
   if (status === "OFFLINE") return "OFFLINE";
@@ -138,7 +151,7 @@ setInterval(() => {
     const diff = Math.floor((new Date() - startTimes[id]) / 1000);
     const el = document.getElementById("t_" + id);
 
-    if (el) el.innerText = `Trajanje: ${diff}s`;
+    if (el) el.innerText = `Trajanje: ${formatTime(diff)}`;
   }
 }, 1000);
 
