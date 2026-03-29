@@ -193,7 +193,10 @@ app.get("/api/shift-stats", async (req, res) => {
   data[m].efficiency = efficiency;
 }
 
-    res.json(data);
+   res.json({
+  data,
+  shiftStart
+});
 
   } catch (err) {
     console.log(err);
