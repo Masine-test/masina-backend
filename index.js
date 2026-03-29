@@ -39,15 +39,12 @@ app.post("/api/data", async (req, res) => {
 
   const now = new Date();
 
-  // ONLINE povratak
   if (offlineTriggered[machineId]) {
     console.log(`✅ ${machineId} ONLINE opet`);
   }
 
   lastSeen[machineId] = now;
   offlineTriggered[machineId] = false;
-
-  console.log("DATA:", req.body);
 
   try {
     if (!lastState[machineId]) {
@@ -67,7 +64,6 @@ app.post("/api/data", async (req, res) => {
       [machineId, lastState[machineId], duration]
     );
 
-    // 🚨 ALARM
     if (lastState[machineId] === "ZASTOJ" && duration > 60) {
       console.log(`⚠️ ALARM: ${machineId} dug zastoj (${duration}s)`);
     }
@@ -75,85 +71,61 @@ app.post("/api/data", async (req, res) => {
     lastState[machineId] = state;
     lastChangeTime[machineId] = now;
 
-    return res.json({ status: "changed" });
+    res.json({ status: "changed" });
 
   } catch (err) {
     console.error(err);
-    return res.status(500).send("error");
-  }
-});
-
-// =======================
-// 🏭 SVE MAŠINE (PRO STATUS)
-// =======================
-app.get("/api/machines/all", async (req, res) => {
-  try {
-    const now = new Date();
-
-    const fullList = machines.map(id => {
-
-      if (!lastSeen[id]) {
-        return {
-          machine_id: id,
-          state: "OFFLINE",
-          status: "NEVER",
-          last_seen: null
-        };
-      }
-
-      const diff = (now - lastSeen[id]) / 1000;
-
-      if (diff > 30) {
-        return {
-          machine_id: id,
-          state: "OFFLINE",
-          status: "OFFLINE",
-          last_seen: lastSeen[id]
-        };
-      }
-
-      return {
-        machine_id: id,
-        state: lastState[id] || "UNKNOWN",
-        status: "ONLINE",
-        last_seen: lastSeen[id]
-      };
-    });
-
-    res.json(fullList);
-
-  } catch (err) {
-    console.log(err);
     res.status(500).send("error");
   }
 });
 
 // =======================
-// ❤️ HEARTBEAT (NEW)
+// 🏭 SVE MAŠINE
+// =======================
+app.get("/api/machines/all", (req, res) => {
+  const now = new Date();
+
+  const list = machines.map(id => {
+    if (!lastSeen[id]) {
+      return { machine_id: id, state: "OFFLINE", status: "NEVER" };
+    }
+
+    const diff = (now - lastSeen[id]) / 1000;
+
+    if (diff > 30) {
+      return { machine_id: id, state: "OFFLINE", status: "OFFLINE" };
+    }
+
+    return {
+      machine_id: id,
+      state: lastState[id],
+      status: "ONLINE"
+    };
+  });
+
+  res.json(list);
+});
+
+// =======================
+// ❤️ HEARTBEAT
 // =======================
 app.get("/api/heartbeat", (req, res) => {
-  res.json({
-    server: "OK",
-    time: new Date()
-  });
+  res.json({ server: "OK", time: new Date() });
 });
-// Za kalendar
 
+// =======================
+// 📅 DAN + SMJENE
+// =======================
 app.get("/api/day-shift-stats", async (req, res) => {
   try {
     const { date, machine } = req.query;
 
-    if (!date || !machine) {
-      return res.status(400).send("Missing params");
-    }
-
     const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setHours(0,0,0,0);
 
     const dayEnd = new Date(dayStart);
     dayEnd.setDate(dayEnd.getDate() + 1);
 
-    // uzmi sve evente za tu mašinu i dan
     const result = await pool.query(`
       SELECT state, duration, created_at
       FROM events
@@ -162,112 +134,71 @@ app.get("/api/day-shift-stats", async (req, res) => {
       AND (created_at + (duration || ' seconds')::interval) > $3
     `, [machine, dayEnd, dayStart]);
 
-    // priprema rezultata
     const shifts = {
-      I: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 },
-      II: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 },
-      III: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 }
+      I: { RAD:0, PRIPREMA:0, ZASTOJ:0 },
+      II: { RAD:0, PRIPREMA:0, ZASTOJ:0 },
+      III:{ RAD:0, PRIPREMA:0, ZASTOJ:0 }
     };
 
-    function getShift(date) {
-      const h = date.getHours();
-      if (h >= 7 && h < 16) return "I";
-      if (h >= 16) return "II";
+    function getShift(h){
+      if (h>=7 && h<16) return "I";
+      if (h>=16) return "II";
       return "III";
     }
 
-    result.rows.forEach(ev => {
+    result.rows.forEach(ev=>{
       let start = new Date(ev.created_at);
-      let end = new Date(start.getTime() + ev.duration * 1000);
+      let end = new Date(start.getTime()+ev.duration*1000);
 
-      // ograniči na taj dan
       if (start < dayStart) start = dayStart;
       if (end > dayEnd) end = dayEnd;
 
-      while (start < end) {
-        const currentShift = getShift(start);
+      while(start<end){
+        const shift = getShift(start.getHours());
+        const next = new Date(start);
 
-        let nextBoundary = new Date(start);
-
-        if (currentShift === "III") {
-          nextBoundary.setHours(7, 0, 0, 0);
-        } else if (currentShift === "I") {
-          nextBoundary.setHours(16, 0, 0, 0);
-        } else {
-          nextBoundary.setDate(nextBoundary.getDate() + 1);
-          nextBoundary.setHours(0, 0, 0, 0);
+        if (shift==="III") next.setHours(7,0,0,0);
+        else if (shift==="I") next.setHours(16,0,0,0);
+        else {
+          next.setDate(next.getDate()+1);
+          next.setHours(0,0,0,0);
         }
 
-        if (nextBoundary > end) nextBoundary = end;
+        if (next > end) next.setTime(end.getTime());
 
-        const seconds = Math.floor((nextBoundary - start) / 1000);
+        const sec = (next-start)/1000;
 
-        if (shifts[currentShift][ev.state] !== undefined) {
-          shifts[currentShift][ev.state] += seconds;
+        if (shifts[shift][ev.state] !== undefined){
+          shifts[shift][ev.state]+=sec;
         }
 
-        start = nextBoundary;
+        start = next;
       }
     });
 
-  
+    const durations = { I:9*3600, II:8*3600, III:7*3600 };
 
-    // efikasnost po danu (24h)
-    for (let d in days) {
-      const rad = days[d].RAD;
-      days[d].eff = Math.round((rad / (24 * 3600)) * 100);
-    }
-
-    res.json(days);
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
-
-    // ⚙️ efikasnost
-    const shiftDurations = {
-      I: 9 * 3600,
-      II: 8 * 3600,
-      III: 7 * 3600
-    };
-
-    for (let s in shifts) {
-      const rad = shifts[s].RAD || 0;
-      let eff = Math.round((rad / shiftDurations[s]) * 100);
-      if (eff > 100) eff = 100;
-
-      shifts[s].efficiency = eff;
-
-      // opcionalno NEAKTIVNA
-      const used = shifts[s].RAD + shifts[s].PRIPREMA + shifts[s].ZASTOJ;
-      shifts[s].NEAKTIVNA = shiftDurations[s] - used;
-      if (shifts[s].NEAKTIVNA < 0) shifts[s].NEAKTIVNA = 0;
+    for(let s in shifts){
+      const rad = shifts[s].RAD;
+      shifts[s].efficiency = Math.round((rad/durations[s])*100);
     }
 
     res.json(shifts);
 
-  } catch (err) {
-    console.log(err);
+  } catch(e){
+    console.log(e);
     res.status(500).send("error");
   }
 });
 
-  // =======================
-// 📅 MJESEC (KALENDAR)
+// =======================
+// 📅 MJESEC
 // =======================
 app.get("/api/month-stats", async (req, res) => {
-  console.log("MONTH API HIT"); // 🔥 debug
-
   try {
     const { machine, year, month } = req.query;
 
-    if (!machine || !year || !month) {
-      return res.status(400).send("Missing params");
-    }
-
-    const start = new Date(year, month - 1, 1);
+    const start = new Date(year, month-1, 1);
     const end = new Date(year, month, 1);
 
     const result = await pool.query(`
@@ -276,50 +207,28 @@ app.get("/api/month-stats", async (req, res) => {
       WHERE machine_id = $1
       AND created_at < $3
       AND (created_at + (duration || ' seconds')::interval) > $2
-    `, [machine, start, end]);
+    `,[machine,start,end]);
 
     const days = {};
 
-    result.rows.forEach(ev => {
-      const day = new Date(ev.created_at).getDate();
+    result.rows.forEach(ev=>{
+      const d = new Date(ev.created_at).getDate();
 
-      if (!days[day]) {
-        days[day] = { RAD: 0 };
-      }
+      if(!days[d]) days[d]={RAD:0};
 
-      if (ev.state === "RAD") {
-        days[day].RAD += ev.duration;
+      if(ev.state==="RAD"){
+        days[d].RAD += ev.duration;
       }
     });
 
-// =======================
-// 📊 HISTORIJA
-// =======================
-app.get("/api/data", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM events ORDER BY created_at DESC LIMIT 50"
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
+    for(let d in days){
+      days[d].eff = Math.round(days[d].RAD/(24*3600)*100);
+    }
 
-// =======================
-// 📈 STATISTIKA
-// =======================
-app.get("/api/stats", async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT state, SUM(duration) as total_duration
-      FROM events
-      GROUP BY state
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    console.log(err);
+    res.json(days);
+
+  } catch(e){
+    console.log(e);
     res.status(500).send("error");
   }
 });
@@ -329,95 +238,3 @@ app.get("/api/stats", async (req, res) => {
 // =======================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server radi na portu", PORT));
-
-// =======================
-// 🚨 OFFLINE DETEKCIJA
-// =======================
-setInterval(() => {
-  const now = new Date();
-
-  for (let machineId of machines) {
-
-    if (!lastSeen[machineId]) {
-      if (!offlineTriggered[machineId]) {
-        offlineTriggered[machineId] = true;
-        console.log(`🚨 ${machineId} OFFLINE (nikad nije online)`);
-      }
-      continue;
-    }
-
-    const diff = (now - lastSeen[machineId]) / 1000;
-
-    if (diff > 30 && !offlineTriggered[machineId]) {
-      offlineTriggered[machineId] = true;
-      console.log(`🚨 ${machineId} OFFLINE (${Math.floor(diff)}s)`);
-    }
-  }
-}, 10000);
-//SMJENE RAZLICITO TRAJANJE
-app.get("/api/shift-stats", async (req, res) => {
-  try {
-    const now = new Date();
-    const hour = now.getHours();
-
-    let shiftStart = new Date(now);
-    let shiftDurationHours = 8;
-
-    // 🧠 definicija smjena
-    if (hour >= 7 && hour < 16) {
-      shiftStart.setHours(7, 0, 0, 0);
-      shiftDurationHours = 9;
-    } else if (hour >= 16) {
-      shiftStart.setHours(16, 0, 0, 0);
-      shiftDurationHours = 8;
-    } else {
-      shiftStart.setDate(now.getDate() - 1);
-      shiftStart.setHours(0, 0, 0, 0);
-      shiftDurationHours = 7;
-    }
-
-    // 📊 uzmi podatke iz baze
-    const result = await pool.query(`
-      SELECT machine_id, state, SUM(duration) as total
-      FROM events
-      WHERE created_at >= $1
-      GROUP BY machine_id, state
-    `, [shiftStart]);
-
-    const data = {};
-
-    result.rows.forEach(r => {
-      if (!data[r.machine_id]) {
-        data[r.machine_id] = {
-          RAD: 0,
-          PRIPREMA: 0,
-          ZASTOJ: 0
-        };
-      }
-
-      data[r.machine_id][r.state] = Number(r.total);
-    });
-
-    // ⚙️ efikasnost (SAMO RAD!)
-    for (let m in data) {
-      const rad = data[m].RAD || 0;
-      const max = shiftDurationHours * 3600;
-
-      let efficiency = 0;
-      if (max > 0) {
-        efficiency = Math.round((rad / max) * 100);
-      }
-
-      if (efficiency > 100) efficiency = 100;
-
-      data[m].efficiency = efficiency;
-    }
-
-    res.json(data);
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("error");
-  }
-});
-
