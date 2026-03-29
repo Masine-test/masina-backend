@@ -93,7 +93,7 @@ app.get("/api/machines/all", (req, res) => {
       machine_id: id,
       state: lastState[id],
       status: "ONLINE",
-      created_at: lastChangeTime[id] // 🔥 BITNO ZA TIMER
+      created_at: lastChangeTime[id]
     };
   });
 
@@ -108,7 +108,7 @@ app.get("/api/heartbeat", (req, res) => {
 });
 
 // =======================
-// 🆕 SHIFT STATS (FIX)
+// ✅ SHIFT STATS (FINAL FIX)
 // =======================
 app.get("/api/shift-stats", async (req, res) => {
   try {
@@ -116,56 +116,64 @@ app.get("/api/shift-stats", async (req, res) => {
     const hour = now.getHours();
 
     let shiftStart = new Date(now);
+    let shiftEnd = new Date(now);
     let shiftSeconds = 8 * 3600;
 
     if (hour >= 7 && hour < 16) {
       shiftStart.setHours(7,0,0,0);
+      shiftEnd.setHours(16,0,0,0);
       shiftSeconds = 9 * 3600;
     } else if (hour >= 16) {
       shiftStart.setHours(16,0,0,0);
+      shiftEnd.setDate(shiftEnd.getDate() + 1);
+      shiftEnd.setHours(0,0,0,0);
       shiftSeconds = 8 * 3600;
     } else {
+      shiftStart.setDate(now.getDate() - 1);
       shiftStart.setHours(0,0,0,0);
+      shiftEnd.setHours(7,0,0,0);
       shiftSeconds = 7 * 3600;
     }
 
     const result = await pool.query(`
-      SELECT machine_id, state, SUM(duration) as total
+      SELECT machine_id, state, duration, created_at
       FROM events
-      WHERE created_at >= $1
-      GROUP BY machine_id, state
-    `, [shiftStart]);
+      WHERE created_at < $2
+      AND (created_at + (duration || ' seconds')::interval) > $1
+    `, [shiftStart, shiftEnd]);
 
     const data = {};
 
-    result.rows.forEach(r => {
-      if (!data[r.machine_id]) {
-        data[r.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
+    result.rows.forEach(ev => {
+      let start = new Date(ev.created_at);
+      let end = new Date(start.getTime() + ev.duration * 1000);
+
+      // 🔥 REZANJE NA SMJENU
+      if (start < shiftStart) start = shiftStart;
+      if (end > shiftEnd) end = shiftEnd;
+
+      const sec = Math.floor((end - start) / 1000);
+
+      if (!data[ev.machine_id]) {
+        data[ev.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
       }
 
-      data[r.machine_id][r.state] = Number(r.total);
+      data[ev.machine_id][ev.state] += sec;
     });
 
-    // 🔥 REALTIME DODATAK + FIX
+    // 🔥 REALTIME
     machines.forEach(m => {
 
       if (!data[m]) data[m] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
 
       if (lastState[m] && lastChangeTime[m]) {
+        let start = new Date(lastChangeTime[m]);
 
-        const extra = Math.floor((now - lastChangeTime[m]) / 1000);
+        if (start < shiftStart) start = shiftStart;
 
-        if (lastState[m] === "RAD") {
-          data[m].RAD += extra;
-        }
+        const extra = Math.floor((now - start) / 1000);
 
-        if (lastState[m] === "PRIPREMA") {
-          data[m].PRIPREMA += extra;
-        }
-
-        if (lastState[m] === "ZASTOJ") {
-          data[m].ZASTOJ += extra;
-        }
+        data[m][lastState[m]] += extra;
       }
 
       let eff = Math.round((data[m].RAD / shiftSeconds) * 100);
