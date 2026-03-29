@@ -200,3 +200,70 @@ setInterval(() => {
     }
   }
 }, 10000);
+//SMJENE RAZLICITO TRAJANJE
+app.get("/api/shift-stats", async (req, res) => {
+  try {
+    const now = new Date();
+    const hour = now.getHours();
+
+    let shiftStart = new Date(now);
+    let shiftDurationHours = 8;
+
+    // 🧠 definicija smjena
+    if (hour >= 7 && hour < 16) {
+      shiftStart.setHours(7, 0, 0, 0);
+      shiftDurationHours = 9;
+    } else if (hour >= 16) {
+      shiftStart.setHours(16, 0, 0, 0);
+      shiftDurationHours = 8;
+    } else {
+      shiftStart.setDate(now.getDate() - 1);
+      shiftStart.setHours(0, 0, 0, 0);
+      shiftDurationHours = 7;
+    }
+
+    // 📊 uzmi podatke iz baze
+    const result = await pool.query(`
+      SELECT machine_id, state, SUM(duration) as total
+      FROM events
+      WHERE created_at >= $1
+      GROUP BY machine_id, state
+    `, [shiftStart]);
+
+    const data = {};
+
+    result.rows.forEach(r => {
+      if (!data[r.machine_id]) {
+        data[r.machine_id] = {
+          RAD: 0,
+          PRIPREMA: 0,
+          ZASTOJ: 0
+        };
+      }
+
+      data[r.machine_id][r.state] = Number(r.total);
+    });
+
+    // ⚙️ efikasnost (SAMO RAD!)
+    for (let m in data) {
+      const rad = data[m].RAD || 0;
+      const max = shiftDurationHours * 3600;
+
+      let efficiency = 0;
+      if (max > 0) {
+        efficiency = Math.round((rad / max) * 100);
+      }
+
+      if (efficiency > 100) efficiency = 100;
+
+      data[m].efficiency = efficiency;
+    }
+
+    res.json(data);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("error");
+  }
+});
+
