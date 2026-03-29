@@ -80,6 +80,30 @@ function formatTime(seconds) {
   );
 }
 
+//Smjene
+  function getShift(hour) {
+  if (hour >= 7 && hour < 16) {
+    return "I smjena (07-16h)";
+  }
+  if (hour >= 16 && hour < 24) {
+    return "II smjena (16-24h)";
+  }
+  return "III smjena (00-07h)";
+}
+
+//Update vremana
+  function updateDateTime() {
+  const now = new Date();
+
+  const dateStr = now.toLocaleDateString();
+  const timeStr = now.toLocaleTimeString();
+
+  document.getElementById("datetime").innerText =
+    `${dateStr} ${timeStr}`;
+
+  document.getElementById("shift").innerText =
+    getShift(now.getHours());
+}
   
 // 🎯 LABEL
 function getLabel(state, status) {
@@ -158,7 +182,16 @@ setInterval(() => {
 // 🔄 refresh
 setInterval(loadMachines, 5000);
 window.onload = loadMachines;
-</script>
 
+setInterval(updateDateTime, 1000);
+updateDateTime();  
+  
+</script>
+<div class="row mb-3">
+  <div class="col-md-12 text-center">
+    <h3 id="datetime"></h3>
+    <h4 id="shift"></h4>
+  </div>
+</div>
 </body>
 </html>
