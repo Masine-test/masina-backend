@@ -178,7 +178,11 @@ data[ev.machine_id][ev.state] += sec;
 
         const extra = Math.floor((now - start) / 1000);
 
-        data[m][lastState[m]] += extra;
+        if (!data[m][lastState[m]]) {
+  data[m][lastState[m]] = 0;
+}
+
+data[m][lastState[m]] += extra;
       }
 
       let eff = Math.round((data[m].RAD / shiftSeconds) * 100);
