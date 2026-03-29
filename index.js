@@ -137,6 +137,106 @@ app.get("/api/heartbeat", (req, res) => {
     time: new Date()
   });
 });
+// Za kalendar
+
+app.get("/api/day-shift-stats", async (req, res) => {
+  try {
+    const { date, machine } = req.query;
+
+    if (!date || !machine) {
+      return res.status(400).send("Missing params");
+    }
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    // uzmi sve evente za tu mašinu i dan
+    const result = await pool.query(`
+      SELECT state, duration, created_at
+      FROM events
+      WHERE machine_id = $1
+      AND created_at < $2
+      AND (created_at + (duration || ' seconds')::interval) > $3
+    `, [machine, dayEnd, dayStart]);
+
+    // priprema rezultata
+    const shifts = {
+      I: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 },
+      II: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 },
+      III: { RAD: 0, PRIPREMA: 0, ZASTOJ: 0 }
+    };
+
+    function getShift(date) {
+      const h = date.getHours();
+      if (h >= 7 && h < 16) return "I";
+      if (h >= 16) return "II";
+      return "III";
+    }
+
+    result.rows.forEach(ev => {
+      let start = new Date(ev.created_at);
+      let end = new Date(start.getTime() + ev.duration * 1000);
+
+      // ograniči na taj dan
+      if (start < dayStart) start = dayStart;
+      if (end > dayEnd) end = dayEnd;
+
+      while (start < end) {
+        const currentShift = getShift(start);
+
+        let nextBoundary = new Date(start);
+
+        if (currentShift === "III") {
+          nextBoundary.setHours(7, 0, 0, 0);
+        } else if (currentShift === "I") {
+          nextBoundary.setHours(16, 0, 0, 0);
+        } else {
+          nextBoundary.setDate(nextBoundary.getDate() + 1);
+          nextBoundary.setHours(0, 0, 0, 0);
+        }
+
+        if (nextBoundary > end) nextBoundary = end;
+
+        const seconds = Math.floor((nextBoundary - start) / 1000);
+
+        if (shifts[currentShift][ev.state] !== undefined) {
+          shifts[currentShift][ev.state] += seconds;
+        }
+
+        start = nextBoundary;
+      }
+    });
+
+    // ⚙️ efikasnost
+    const shiftDurations = {
+      I: 9 * 3600,
+      II: 8 * 3600,
+      III: 7 * 3600
+    };
+
+    for (let s in shifts) {
+      const rad = shifts[s].RAD || 0;
+      let eff = Math.round((rad / shiftDurations[s]) * 100);
+      if (eff > 100) eff = 100;
+
+      shifts[s].efficiency = eff;
+
+      // opcionalno NEAKTIVNA
+      const used = shifts[s].RAD + shifts[s].PRIPREMA + shifts[s].ZASTOJ;
+      shifts[s].NEAKTIVNA = shiftDurations[s] - used;
+      if (shifts[s].NEAKTIVNA < 0) shifts[s].NEAKTIVNA = 0;
+    }
+
+    res.json(shifts);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("error");
+  }
+});
 
 // =======================
 // 📊 HISTORIJA
