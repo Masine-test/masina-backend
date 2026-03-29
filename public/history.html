@@ -12,7 +12,6 @@
       margin-top: 15px;
     }
 
-    /* ✅ PRAVI KALENDAR GRID */
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -47,6 +46,16 @@
       font-weight: bold;
       font-size: 12px;
       color: gray;
+    }
+
+    /* 🔥 NOVO */
+    .selection-box {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f1f3f5;
+      text-align: center;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -94,7 +103,6 @@
   <!-- 📅 KALENDAR -->
   <h3>📅 Kalendar</h3>
 
-  <!-- dani u sedmici -->
   <div class="calendar-grid mb-2">
     <div class="weekday">Pon</div>
     <div class="weekday">Uto</div>
@@ -107,6 +115,9 @@
 
   <div id="calendar" class="calendar-grid"></div>
 
+  <!-- 🔥 NOVO: MAŠINA + DATUM -->
+  <div id="selectionInfo" class="selection-box"></div>
+
   <!-- rezultat -->
   <div id="result"></div>
 
@@ -116,7 +127,6 @@
 const DAY_API = "/api/day-shift-stats";
 const MONTH_API = "/api/month-stats";
 
-// format vremena
 function formatTime(sec) {
   sec = Math.floor(sec || 0);
 
@@ -128,7 +138,7 @@ function formatTime(sec) {
 }
 
 // =======================
-// 📊 DAN (SMJENE)
+// 📊 DAN
 // =======================
 async function loadData(dateOverride = null) {
   const machine = document.getElementById("machine").value;
@@ -137,6 +147,13 @@ async function loadData(dateOverride = null) {
   if (!date) return alert("Izaberi datum");
 
   document.getElementById("date").value = date;
+
+  // 🔥 UPDATE HEADERA
+  const d = new Date(date);
+  const formatted = d.toLocaleDateString();
+
+  document.getElementById("selectionInfo").innerText =
+    `🏭 ${machine} | 📅 ${formatted}`;
 
   const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
   const data = await res.json();
@@ -167,7 +184,7 @@ async function loadData(dateOverride = null) {
 }
 
 // =======================
-// 📅 MJESEC (SEDMIČNI GRID)
+// 📅 MJESEC
 // =======================
 async function loadMonth() {
   const machine = document.getElementById("machine").value;
@@ -187,13 +204,11 @@ async function loadMonth() {
 
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // 🔥 OFFSET (da mjesec počne od ponedjeljka)
   const firstDay = new Date(year, month - 1, 1).getDay();
   const offset = firstDay === 0 ? 6 : firstDay - 1;
 
   for (let i = 0; i < offset; i++) {
-    const empty = document.createElement("div");
-    container.appendChild(empty);
+    container.appendChild(document.createElement("div"));
   }
 
   for (let i = 1; i <= daysInMonth; i++) {
@@ -222,7 +237,7 @@ async function loadMonth() {
 }
 
 // =======================
-// 🖱️ KLIK NA DAN
+// 🖱️ KLIK
 // =======================
 function selectDay(day) {
   const d = new Date(document.getElementById("date").value);
@@ -233,9 +248,7 @@ function selectDay(day) {
   loadData(iso);
 }
 
-// =======================
 // INIT
-// =======================
 document.getElementById("date").value =
   new Date().toISOString().split("T")[0];
 
