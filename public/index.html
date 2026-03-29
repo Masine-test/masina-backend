@@ -158,9 +158,9 @@ async function loadMachines() {
           <div class="timer" id="t_${m.machine_id}"></div>
 
           <div style="font-size:13px; margin-top:10px;">
-            🟢 RAD: ${rad}<br>
-            🟠 PRIPREMA: ${priprema}<br>
-            🔴 ZASTOJ: ${zastoj}
+           🟢 RAD: <span id="rad_${m.machine_id}">${rad}</span><br>
+          🟠 PRIPREMA: <span id="priprema_${m.machine_id}">${priprema}</span><br>
+          🔴 ZASTOJ: <span id="zastoj_${m.machine_id}">${zastoj}</span>
           </div>
 
           <div style="margin-top:10px; font-weight:bold;">
@@ -179,6 +179,15 @@ async function loadMachines() {
     statusEl.innerHTML = `<span>${getLabel(m.state, m.status)}</span>`;
     labelEl.innerText = m.status;
 
+// 🔥 UPDATE VREMENA SVAKI REFRESH
+const radEl = document.getElementById("rad_" + m.machine_id);
+const pripremaEl = document.getElementById("priprema_" + m.machine_id);
+const zastojEl = document.getElementById("zastoj_" + m.machine_id);
+
+if (radEl) radEl.innerText = rad;
+if (pripremaEl) pripremaEl.innerText = priprema;
+if (zastojEl) zastojEl.innerText = zastoj;
+    
     // TIMER reset
     if (m.status !== "NEVER") {
       if (lastStates[m.machine_id] !== (m.state + m.status)) {
