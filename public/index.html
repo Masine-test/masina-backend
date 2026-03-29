@@ -1,73 +1,22 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Dashboard mašina</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
-
-  <style>
-    .machine-card {
-      text-align: center;
-      padding: 20px;
-    }
-
-    .status {
-      font-size: 22px;
-      font-weight: bold;
-    }
-
-    .timer {
-      font-size: 16px;
-      color: gray;
-    }
-
-    .offline { color: gray; }
-    .rad { color: green; }
-    .zastoj { color: red; }
-    .priprema { color: orange; }
-
-    .blink {
-      animation: blink 1s infinite;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0.3; }
-    }
-  </style>
-</head>
-
-<body class="layout-fluid">
-
-<div class="container-xl mt-4">
-
-  <div class="mb-3">
-    <a href="/history.html" class="btn btn-primary">📅 Historija</a>
-  </div>
-
-  <h1>🏭 Sve mašine</h1>
-
-  <div class="row" id="machines"></div>
-
-  <!-- 🕒 DATUM I SMJENA -->
-  <div class="row mt-4">
-    <div class="col-md-12 text-center">
-      <h3 id="datetime"></h3>
-      <h4 id="shift"></h4>
-    </div>
-  </div>
-
-</div>
-
 <script>
-const API = "/api/machines/all";
 const STATS_API = "/api/shift-stats";
+const API = "/api/machines/all";
 
 let startTimes = {};
 let lastStates = {};
-let shiftStart = null;
+let shiftStartGlobal = null;
 
-// 🎯 BOJE
+// format
+function formatTime(seconds) {
+  seconds = Math.floor(seconds || 0);
+
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
 function getClass(state, status) {
   if (status === "OFFLINE") return "zastoj blink";
   if (status === "NEVER") return "offline";
@@ -79,43 +28,12 @@ function getClass(state, status) {
   return "offline";
 }
 
-// 🎯 LABEL
 function getLabel(state, status) {
   if (status === "OFFLINE") return "OFFLINE";
   if (status === "NEVER") return "NEVER";
   return state;
 }
 
-// ⏱️ format
-function formatTime(sec) {
-  sec = Math.floor(sec || 0);
-
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-
-  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-}
-
-// 🕒 smjena label
-function getShift(hour) {
-  if (hour >= 7 && hour < 16) return "I smjena (07-16h)";
-  if (hour >= 16) return "II smjena (16-24h)";
-  return "III smjena (00-07h)";
-}
-
-// 🕒 vrijeme
-function updateDateTime() {
-  const now = new Date();
-
-  document.getElementById("datetime").innerText =
-    now.toLocaleDateString() + " " + now.toLocaleTimeString();
-
-  document.getElementById("shift").innerText =
-    getShift(now.getHours());
-}
-
-// 🔥 GLAVNA FUNKCIJA
 async function loadMachines() {
   const res = await fetch(API);
   const machines = await res.json();
@@ -124,22 +42,32 @@ async function loadMachines() {
   const statsJson = await statsRes.json();
 
   const stats = statsJson.data;
-  shiftStart = new Date(statsJson.shiftStart);
+  const shiftStart = new Date(statsJson.shiftStart);
+
+  shiftStartGlobal = shiftStart;
 
   const container = document.getElementById("machines");
 
   machines.forEach(m => {
 
-    const s = stats[m.machine_id] || {};
+    let s = stats[m.machine_id] || {};
 
-    const rad = formatTime(s.RAD || 0);
-    const priprema = formatTime(s.PRIPREMA || 0);
-    const zastoj = formatTime(s.ZASTOJ || 0);
+    // 🔥 RESET AKO JE STARI STATE
+    if (m.created_at) {
+      const lastChange = new Date(m.created_at);
+
+      if (lastChange < shiftStart) {
+        s = { RAD: 0, PRIPREMA: 0, ZASTOJ: 0, efficiency: 0 };
+      }
+    }
+
+    const rad = formatTime(s.RAD);
+    const priprema = formatTime(s.PRIPREMA);
+    const zastoj = formatTime(s.ZASTOJ);
     const eff = s.efficiency || 0;
 
     let card = document.getElementById("card_" + m.machine_id);
 
-    // 🆕 CREATE
     if (!card) {
       const div = document.createElement("div");
       div.className = "col-md-3";
@@ -150,69 +78,54 @@ async function loadMachines() {
           <h3>${m.machine_id}</h3>
 
           <div class="status" id="s_${m.machine_id}"></div>
-          <div id="st_${m.machine_id}" style="font-size:12px;color:gray;"></div>
+          <div id="st_${m.machine_id}"></div>
           <div class="timer" id="t_${m.machine_id}"></div>
 
-          <div style="margin-top:10px;text-align:left;font-size:13px;">
-            🟢 RAD: ${rad}<br>
-            🟠 PRIPREMA: ${priprema}<br>
-            🔴 ZASTOJ: ${zastoj}
+          <div class="stats">
+            🟢 RAD: <span id="rad_${m.machine_id}"></span><br>
+            🟠 PRIPREMA: <span id="prep_${m.machine_id}"></span><br>
+            🔴 ZASTOJ: <span id="zast_${m.machine_id}"></span>
           </div>
 
-          <div style="margin-top:10px;font-weight:bold;">
-            ⚙️ Efikasnost: ${eff}%
-          </div>
+          <div class="eff" id="eff_${m.machine_id}"></div>
         </div>
       `;
 
       container.appendChild(div);
     }
 
-    // 🔄 UPDATE STATUS
-    const statusEl = document.getElementById("s_" + m.machine_id);
-    const labelEl = document.getElementById("st_" + m.machine_id);
+    document.getElementById("s_" + m.machine_id).className =
+      "status " + getClass(m.state, m.status);
 
-    statusEl.className = "status " + getClass(m.state, m.status);
-    statusEl.innerHTML = `<span>${getLabel(m.state, m.status)}</span>`;
-    labelEl.innerText = m.status;
+    document.getElementById("s_" + m.machine_id).innerText =
+      getLabel(m.state, m.status);
 
-    // 🔥 RESET LOGIKA (GLAVNI FIX)
-    if (
-      !startTimes[m.machine_id] ||
-      startTimes[m.machine_id] < shiftStart ||
-      lastStates[m.machine_id] !== (m.state + m.status)
-    ) {
-      startTimes[m.machine_id] = new Date(
-        m.created_at && new Date(m.created_at) > shiftStart
-          ? m.created_at
-          : shiftStart
-      );
+    document.getElementById("st_" + m.machine_id).innerText = m.status;
 
-      lastStates[m.machine_id] = m.state + m.status;
+    document.getElementById("rad_" + m.machine_id).innerText = rad;
+    document.getElementById("prep_" + m.machine_id).innerText = priprema;
+    document.getElementById("zast_" + m.machine_id).innerText = zastoj;
+    document.getElementById("eff_" + m.machine_id).innerText = `⚙️ ${eff}%`;
+
+    // TIMER
+    if (m.created_at) {
+      if (lastStates[m.machine_id] !== (m.state + m.status)) {
+        startTimes[m.machine_id] = new Date(m.created_at);
+        lastStates[m.machine_id] = m.state + m.status;
+      }
     }
   });
 }
 
-// ⏱️ TIMER
+// timer
 setInterval(() => {
   for (let id in startTimes) {
-    if (!startTimes[id]) continue;
-
     const diff = Math.floor((new Date() - startTimes[id]) / 1000);
     const el = document.getElementById("t_" + id);
-
     if (el) el.innerText = "Trajanje: " + formatTime(diff);
   }
 }, 1000);
 
-// 🔄 refresh
 setInterval(loadMachines, 5000);
 window.onload = loadMachines;
-
-// 🕒 vrijeme refresh
-setInterval(updateDateTime, 1000);
-updateDateTime();
 </script>
-
-</body>
-</html>
