@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Historija</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+
+  <style>
+    .shift-card {
+      padding: 15px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+
+<body class="layout-fluid">
+
+<div class="container-xl mt-4">
+
+  <h1>📅 Historija mašine</h1>
+
+  <!-- kontrola -->
+  <div class="row mb-3">
+
+    <div class="col-md-4">
+      <select id="machine" class="form-select">
+        <option value="masina_01">masina_01</option>
+        <option value="masina_02">masina_02</option>
+        <option value="masina_03">masina_03</option>
+        <option value="masina_04">masina_04</option>
+        <option value="masina_05">masina_05</option>
+        <option value="masina_06">masina_06</option>
+        <option value="masina_07">masina_07</option>
+        <option value="masina_08">masina_08</option>
+        <option value="masina_09">masina_09</option>
+        <option value="masina_10">masina_10</option>
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <input type="date" id="date" class="form-control">
+    </div>
+
+    <div class="col-md-4">
+      <button class="btn btn-primary w-100" onclick="loadData()">
+        🔍 Prikaži
+      </button>
+    </div>
+
+  </div>
+
+  <!-- rezultat -->
+  <div id="result"></div>
+
+</div>
+
+<script>
+const API = "/api/day-shift-stats";
+
+// format vremena
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+async function loadData() {
+  const machine = document.getElementById("machine").value;
+  const date = document.getElementById("date").value;
+
+  if (!date) return alert("Izaberi datum");
+
+  const res = await fetch(`${API}?date=${date}&machine=${machine}`);
+  const data = await res.json();
+
+  const div = document.getElementById("result");
+  div.innerHTML = "";
+
+  for (let s in data) {
+    const d = data[s];
+
+    div.innerHTML += `
+      <div class="card shift-card">
+        <h3>${s} smjena</h3>
+
+        <div>🟢 RAD: ${formatTime(d.RAD)}</div>
+        <div>🟠 PRIPREMA: ${formatTime(d.PRIPREMA)}</div>
+        <div>🔴 ZASTOJ: ${formatTime(d.ZASTOJ)}</div>
+        <div>⚫ NEAKTIVNA: ${formatTime(d.NEAKTIVNA)}</div>
+
+        <div style="margin-top:10px; font-weight:bold;">
+          ⚙️ Efikasnost: ${d.efficiency}%
+        </div>
+      </div>
+    `;
+  }
+}
+
+// default danas
+document.getElementById("date").value =
+  new Date().toISOString().split("T")[0];
+</script>
+
+</body>
+</html>
