@@ -200,6 +200,97 @@ data[m][lastState[m]] += extra;
 });
 
 // =======================
+// 📅 DAN + SMJENE
+// =======================
+app.get("/api/day-shift-stats", async (req, res) => {
+  try {
+    const { date, machine } = req.query;
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0,0,0,0);
+
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const result = await pool.query(`
+      SELECT state, duration, created_at
+      FROM events
+      WHERE machine_id = $1
+      AND created_at < $2
+      AND (created_at + (duration || ' seconds')::interval) > $3
+    `, [machine, dayEnd, dayStart]);
+
+    const shifts = {
+      I: { RAD:0, PRIPREMA:0, ZASTOJ:0 },
+      II: { RAD:0, PRIPREMA:0, ZASTOJ:0 },
+      III:{ RAD:0, PRIPREMA:0, ZASTOJ:0 }
+    };
+
+    function getShift(h){
+      if (h>=7 && h<16) return "I";
+      if (h>=16) return "II";
+      return "III";
+    }
+
+    result.rows.forEach(ev=>{
+      let start = new Date(ev.created_at);
+      let end = new Date(start.getTime()+ev.duration*1000);
+
+      if (start < dayStart) start = dayStart;
+      if (end > dayEnd) end = dayEnd;
+
+      while(start<end){
+        const shift = getShift(start.getHours());
+        const next = new Date(start);
+
+        if (shift==="III") next.setHours(7,0,0,0);
+        else if (shift==="I") next.setHours(16,0,0,0);
+        else {
+          next.setDate(next.getDate()+1);
+          next.setHours(0,0,0,0);
+        }
+
+        if (next > end) next.setTime(end.getTime());
+
+        const sec = Math.floor((next - start) / 1000);
+
+        if (!shifts[shift][ev.state]) {
+          shifts[shift][ev.state] = 0;
+        }
+
+        shifts[shift][ev.state] += sec;
+
+        start = next;
+      }
+    });
+
+    const durations = { I:9*3600, II:8*3600, III:7*3600 };
+
+    for (let s in shifts) {
+      const rad = shifts[s].RAD || 0;
+      const priprema = shifts[s].PRIPREMA || 0;
+      const zastoj = shifts[s].ZASTOJ || 0;
+
+      const used = rad + priprema + zastoj;
+
+      shifts[s].NEAKTIVNA = durations[s] - used;
+      if (shifts[s].NEAKTIVNA < 0) shifts[s].NEAKTIVNA = 0;
+
+      let eff = Math.round((rad / durations[s]) * 100);
+      if (eff > 100) eff = 100;
+
+      shifts[s].efficiency = eff;
+    }
+
+    res.json(shifts);
+
+  } catch(e){
+    console.log(e);
+    res.status(500).send("error");
+  }
+});
+
+// =======================
 // 🚀 SERVER
 // =======================
 const PORT = process.env.PORT || 3000;
