@@ -211,12 +211,19 @@ const shiftStart = new Date(statsJson.shiftStart);
     effEl.innerText = `⚙️ Efikasnost: ${eff}%`;
 
     // ⏱️ TIMER RESET (FIXED)
-    if (m.status !== "NEVER") {
-      if (lastStates[m.machine_id] !== (m.state + m.status)) {
-        startTimes[m.machine_id] = new Date(m.created_at || Date.now());
-        lastStates[m.machine_id] = m.state + m.status;
-      }
-    }
+    if (
+  !startTimes[m.machine_id] ||
+  startTimes[m.machine_id] < shiftStart ||
+  lastStates[m.machine_id] !== (m.state + m.status)
+) {
+  startTimes[m.machine_id] = new Date(
+    m.created_at && new Date(m.created_at) > shiftStart
+      ? m.created_at
+      : shiftStart
+  );
+
+  lastStates[m.machine_id] = m.state + m.status;
+}
   });
 }
 
