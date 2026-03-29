@@ -64,13 +64,13 @@ const STATS_API = "/api/shift-stats";
 
 let startTimes = {};
 let lastStates = {};
-let shiftStartGlobal = null;
 
 // =======================
 // FORMAT
 // =======================
 function formatTime(sec) {
   sec = Math.floor(sec || 0);
+
   let h = Math.floor(sec / 3600);
   let m = Math.floor((sec % 3600) / 60);
   let s = sec % 60;
@@ -128,10 +128,7 @@ async function loadMachines() {
   const machines = await res.json();
 
   const statsRes = await fetch(STATS_API);
-  const statsResponse = await statsRes.json();
-
-  const stats = statsResponse.data;
-  shiftStartGlobal = new Date(statsResponse.shiftStart);
+  const stats = await statsRes.json(); // ✅ FIX (bez .data)
 
   const container = document.getElementById("machines");
 
@@ -139,13 +136,7 @@ async function loadMachines() {
 
     const s = stats[m.machine_id] || {};
 
-    // 🔥 RESET NA POČETKU SMJENE
-    let rad = s.RAD || 0;
-    if (shiftStartGlobal) {
-      const maxRad = Math.floor((new Date() - shiftStartGlobal) / 1000);
-      if (rad > maxRad) rad = maxRad;
-    }
-
+    const rad = formatTime(s.RAD || 0);
     const priprema = formatTime(s.PRIPREMA || 0);
     const zastoj = formatTime(s.ZASTOJ || 0);
     const eff = s.efficiency || 0;
@@ -167,7 +158,7 @@ async function loadMachines() {
           <div class="timer" id="t_${m.machine_id}"></div>
 
           <div style="font-size:13px; margin-top:10px;">
-            🟢 RAD: ${formatTime(rad)}<br>
+            🟢 RAD: ${rad}<br>
             🟠 PRIPREMA: ${priprema}<br>
             🔴 ZASTOJ: ${zastoj}
           </div>
