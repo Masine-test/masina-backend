@@ -187,7 +187,7 @@ app.get("/api/day-shift-stats", async (req, res) => {
 
         if (next > end) next.setTime(end.getTime());
 
-        const sec = (next-start)/1000;
+        const sec = Math.floor((next - start) / 1000);
 
         if (shifts[shift][ev.state] !== undefined){
           shifts[shift][ev.state]+=sec;
