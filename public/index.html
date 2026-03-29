@@ -54,9 +54,9 @@
 const API = "/api/machines/all";
 
 let startTimes = {};
-let lastStates = {}; // 🔥 novo
+let lastStates = {};
 
-// 🎯 BOJE + STATUS LOGIKA
+// 🎯 BOJE
 function getClass(state, status) {
   if (status === "OFFLINE") return "zastoj blink";
   if (status === "NEVER") return "offline";
@@ -84,10 +84,12 @@ async function loadMachines() {
 
   data.forEach(m => {
 
-    // 🔥 RESET TIMER NA PROMJENU
-    if (lastStates[m.machine_id] !== (m.state + m.status)) {
-      startTimes[m.machine_id] = new Date(m.last_seen || Date.now());
-      lastStates[m.machine_id] = m.state + m.status;
+    // 🔥 RESET TIMER NA PROMJENU (samo ako nije NEVER)
+    if (m.status !== "NEVER") {
+      if (lastStates[m.machine_id] !== (m.state + m.status)) {
+        startTimes[m.machine_id] = new Date(m.last_seen || Date.now());
+        lastStates[m.machine_id] = m.state + m.status;
+      }
     }
 
     const div = document.createElement("div");
@@ -105,7 +107,11 @@ async function loadMachines() {
           ${m.status}
         </div>
 
-        <div class="timer" id="t_${m.machine_id}"></div>
+        ${
+          m.status === "NEVER"
+            ? `<div class="timer">N/A</div>`
+            : `<div class="timer" id="t_${m.machine_id}"></div>`
+        }
       </div>
     `;
 
@@ -113,7 +119,7 @@ async function loadMachines() {
   });
 }
 
-// ⏱️ TIMER
+// ⏱️ TIMER (radi samo za aktivne)
 setInterval(() => {
   for (let id in startTimes) {
     if (!startTimes[id]) continue;
@@ -129,7 +135,6 @@ setInterval(() => {
 setInterval(loadMachines, 5000);
 window.onload = loadMachines;
 </script>
-
 
 </body>
 </html>
