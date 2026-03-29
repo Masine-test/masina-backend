@@ -108,7 +108,7 @@ app.get("/api/heartbeat", (req, res) => {
 });
 
 // =======================
-// ✅ SHIFT STATS (FINAL FIX)
+// ✅ SHIFT STATS (FIXED)
 // =======================
 app.get("/api/shift-stats", async (req, res) => {
   try {
@@ -148,55 +148,41 @@ app.get("/api/shift-stats", async (req, res) => {
       let start = new Date(ev.created_at);
       let end = new Date(start.getTime() + ev.duration * 1000);
 
-      // 🔥 REZANJE NA SMJENU
       if (start < shiftStart) start = shiftStart;
       if (end > shiftEnd) end = shiftEnd;
 
       const sec = Math.floor((end - start) / 1000);
 
       if (!data[ev.machine_id]) {
-  data[ev.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
-}
+        data[ev.machine_id] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
+      }
 
-// 🔥 AKO STATE NE POSTOJI → KREIRAJ
-if (!data[ev.machine_id][ev.state]) {
-  data[ev.machine_id][ev.state] = 0;
-}
+      if (!data[ev.machine_id][ev.state]) {
+        data[ev.machine_id][ev.state] = 0;
+      }
 
-data[ev.machine_id][ev.state] += sec;
+      data[ev.machine_id][ev.state] += sec;
     });
 
-    // 🔥 REALTIME
+    // 🔥 REALTIME FIX (bez bugova)
     machines.forEach(m => {
 
       if (!data[m]) data[m] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
 
+      if (lastState[m] && lastChangeTime[m]) {
 
-if (lastState[m] && lastChangeTime[m]) {
+        let start = new Date(lastChangeTime[m]);
+        if (start < shiftStart) start = shiftStart;
 
-  let start = new Date(lastChangeTime[m]);
+        if (start < shiftEnd) {
+          const extra = Math.floor((now - start) / 1000);
 
-  if (start < shiftStart) {
-    start = shiftStart;
-  }
+          if (!data[m][lastState[m]]) {
+            data[m][lastState[m]] = 0;
+          }
 
-  if (start <= now) {
-    const extra = Math.floor((now - start) / 1000);
-
-    if (!data[m][lastState[m]]) {
-      data[m][lastState[m]] = 0;
-    }
-
-    data[m][lastState[m]] += extra;
-  }
-}
-      
-
-        if (!data[m][lastState[m]]) {
-  data[m][lastState[m]] = 0;
-}
-
-data[m][lastState[m]] += extra;
+          data[m][lastState[m]] += extra;
+        }
       }
 
       let eff = Math.round((data[m].RAD / shiftSeconds) * 100);
@@ -214,7 +200,7 @@ data[m][lastState[m]] += extra;
 });
 
 // =======================
-// 📅 DAN + SMJENE
+// 📅 DAN + SMJENE (OSTAJE ISTO)
 // =======================
 app.get("/api/day-shift-stats", async (req, res) => {
   try {
@@ -282,10 +268,7 @@ app.get("/api/day-shift-stats", async (req, res) => {
 
     for (let s in shifts) {
       const rad = shifts[s].RAD || 0;
-      const priprema = shifts[s].PRIPREMA || 0;
-      const zastoj = shifts[s].ZASTOJ || 0;
-
-      const used = rad + priprema + zastoj;
+      const used = rad + (shifts[s].PRIPREMA||0) + (shifts[s].ZASTOJ||0);
 
       shifts[s].NEAKTIVNA = durations[s] - used;
       if (shifts[s].NEAKTIVNA < 0) shifts[s].NEAKTIVNA = 0;
