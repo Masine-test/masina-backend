@@ -141,7 +141,10 @@ async function loadMachines() {
 
 try {
   const statsRes = await fetch(STATS_API);
-  stats = await statsRes.json();
+const statsJson = await statsRes.json();
+
+const stats = statsJson.data;
+const shiftStart = new Date(statsJson.shiftStart);
 } catch (e) {
   console.log("Stats API error:", e);
 }
