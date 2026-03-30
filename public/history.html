@@ -22,7 +22,6 @@
       transform: scale(1.05);
     }
 
-    /* GRID kalendar */
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -38,7 +37,6 @@
       visibility: hidden;
     }
 
-    /* AKTIVNI DAN */
     .active-day {
       border: 3px solid #0d6efd;
       transform: scale(1.05);
@@ -58,7 +56,7 @@
 
   <div class="row mb-3">
 
-    <div class="col-md-4">
+    <div class="col-md-6">
       <select id="machine" class="form-select" onchange="reloadAll()">
         <option value="masina_01">masina_01</option>
         <option value="masina_02">masina_02</option>
@@ -73,20 +71,17 @@
       </select>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-6">
       <input type="date" id="date" class="form-control" onchange="reloadAll()">
-    </div>
-
-    <div class="col-md-4">
-      <button class="btn btn-primary w-100" onclick="searchAll()">
-        🔍 Prikaži
-      </button>
     </div>
 
   </div>
 
   <h3>📅 Kalendar</h3>
   <div class="calendar-grid" id="calendar"></div>
+
+  <!-- 🔥 NOVI NASLOV -->
+  <h3 id="title" style="margin-top:20px;"></h3>
 
   <div id="result"></div>
 
@@ -98,9 +93,7 @@ const MONTH_API = "/api/month-stats";
 
 let selectedDay = null;
 
-// =======================
 // FORMAT
-// =======================
 function formatTime(sec) {
   let h = Math.floor(sec/3600);
   let m = Math.floor((sec%3600)/60);
@@ -108,9 +101,7 @@ function formatTime(sec) {
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-// =======================
 // 📊 DAN
-// =======================
 async function loadData(dateOverride = null) {
   const machine = document.getElementById("machine").value;
   const date = dateOverride || document.getElementById("date").value;
@@ -119,6 +110,10 @@ async function loadData(dateOverride = null) {
 
   selectedDay = new Date(date).getDate();
   document.getElementById("date").value = date;
+
+  // 🔥 NASLOV
+  document.getElementById("title").innerText =
+    `Statistika za ${machine} na ${date}`;
 
   const res = await fetch(`${DAY_API}?date=${date}&machine=${machine}`);
   const data = await res.json();
@@ -148,9 +143,7 @@ async function loadData(dateOverride = null) {
   loadMonth();
 }
 
-// =======================
-// 📅 MJESEC (SEDMICE)
-// =======================
+// 📅 MJESEC
 async function loadMonth() {
   const machine = document.getElementById("machine").value;
   const date = document.getElementById("date").value;
@@ -173,7 +166,6 @@ async function loadMonth() {
   const container = document.getElementById("calendar");
   container.innerHTML = "";
 
-  // HEADER
   const daysHeader = ["Pon","Uto","Sri","Čet","Pet","Sub","Ned"];
   daysHeader.forEach(d => {
     const el = document.createElement("div");
@@ -186,7 +178,6 @@ async function loadMonth() {
   let startDay = firstDay.getDay();
   startDay = (startDay === 0) ? 6 : startDay - 1;
 
-  // prazni slotovi
   for (let i = 0; i < startDay; i++) {
     const empty = document.createElement("div");
     empty.className = "empty-day";
@@ -229,9 +220,7 @@ async function loadMonth() {
   }
 }
 
-// =======================
-// 🖱️ SELECT
-// =======================
+// SELECT
 function selectDay(day) {
   const d = new Date(document.getElementById("date").value);
   d.setDate(day);
@@ -241,25 +230,12 @@ function selectDay(day) {
   loadData(iso);
 }
 
-// =======================
-// 🔍 BUTTON FIX
-// =======================
-function searchAll() {
-  selectedDay = new Date(document.getElementById("date").value).getDate();
-  loadMonth();
+// RELOAD
+function reloadAll() {
   loadData();
 }
 
-// =======================
-// 🔁 RELOAD
-// =======================
-function reloadAll() {
-  searchAll();
-}
-
-// =======================
 // INIT
-// =======================
 const today = new Date().toISOString().split("T")[0];
 document.getElementById("date").value = today;
 selectedDay = new Date().getDate();
