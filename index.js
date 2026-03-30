@@ -113,8 +113,8 @@ app.get("/api/heartbeat", (req, res) => {
 app.get("/api/shift-stats", async (req, res) => {
   try {
     const now = new Date();
-    const hour = now.getHours();
-
+   // const hour = now.getHours();
+const hour = 8;
     let shiftStart = new Date(now);
     let shiftEnd = new Date(now);
     let shiftSeconds = 8 * 3600;
