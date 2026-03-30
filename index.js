@@ -20,7 +20,7 @@ const pool = new Pool({
 });
 
 // =======================
-// STATE MEMORY
+// 📥 STATE MEMORY
 // =======================
 let lastState = {};
 let lastChangeTime = {};
@@ -28,7 +28,7 @@ let lastSeen = {};
 let offlineTriggered = {};
 
 // =======================
-// POST (ESP)
+// 📥 POST (ESP)
 // =======================
 app.post("/api/data", async (req, res) => {
   const { machineId, state } = req.body;
@@ -72,7 +72,7 @@ app.post("/api/data", async (req, res) => {
 });
 
 // =======================
-// MACHINES
+// 🏭 SVE MAŠINE
 // =======================
 app.get("/api/machines/all", (req, res) => {
   const now = new Date();
@@ -101,14 +101,14 @@ app.get("/api/machines/all", (req, res) => {
 });
 
 // =======================
-// HEARTBEAT
+// ❤️ HEARTBEAT
 // =======================
 app.get("/api/heartbeat", (req, res) => {
   res.json({ server: "OK", time: new Date() });
 });
 
 // =======================
-// SHIFT STATS (FIX FINAL)
+// ✅ SHIFT STATS (FIXED)
 // =======================
 app.get("/api/shift-stats", async (req, res) => {
   try {
@@ -144,9 +144,6 @@ app.get("/api/shift-stats", async (req, res) => {
 
     const data = {};
 
-    // =======================
-    // DB EVENTS
-    // =======================
     result.rows.forEach(ev => {
       let start = new Date(ev.created_at);
       let end = new Date(start.getTime() + ev.duration * 1000);
@@ -167,9 +164,14 @@ app.get("/api/shift-stats", async (req, res) => {
       data[ev.machine_id][ev.state] += sec;
     });
 
-    // =======================
-    // REALTIME (FIX)
-    // =======================
+    // 🔥 RESET NA POČETKU SMJENE (KLJUČNI FIX)
+    machines.forEach(m => {
+      if (lastChangeTime[m] && lastChangeTime[m] < shiftStart) {
+        lastChangeTime[m] = new Date(shiftStart);
+      }
+    });
+
+    // 🔥 REALTIME FIX (tvoj original)
     machines.forEach(m => {
 
       if (!data[m]) data[m] = { RAD:0, PRIPREMA:0, ZASTOJ:0 };
@@ -177,15 +179,9 @@ app.get("/api/shift-stats", async (req, res) => {
       if (lastState[m] && lastChangeTime[m]) {
 
         let start = new Date(lastChangeTime[m]);
+        if (start < shiftStart) start = shiftStart;
 
-        // 🔥 KLJUČNI FIX
-        if (start < shiftStart) {
-          start = shiftStart;
-        }
-
-        // zaštita
-        if (start < now && start < shiftEnd) {
-
+        if (start < shiftEnd) {
           const extra = Math.floor((now - start) / 1000);
 
           if (!data[m][lastState[m]]) {
